@@ -1,0 +1,20 @@
+{
+  "chat.tools.terminal.autoApprove": {
+    "npm run": true,
+    "npm run test": true,
+    "npx tsc": true,
+    "node": true,
+    "/^git (status|diff|add|commit)\\b/": true,
+
+    "rm -rf": false,
+    "sudo": false,
+    "/^git push\\b.*--force\\b/": {
+      "approve": false,
+      "matchCommandLine": true
+    },
+    "/\\.env(?!\\.example\\b)/": {
+      "approve": false,
+      "matchCommandLine": true
+    }
+  }
+}

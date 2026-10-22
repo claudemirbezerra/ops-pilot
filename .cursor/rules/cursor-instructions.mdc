@@ -1,0 +1,35 @@
+---
+description: Memória do projeto OpsPilot — stack, comandos, convenções e fluxo Spec Kit
+alwaysApply: true
+---
+
+# OpsPilot
+
+Copiloto de plantão que gerencia alertas e incidentes de produção. APO é um agente LangChain/LangGraph sobre OpenRouter.
+
+## Stack
+- Node 22 LTS, TypeScript ESM strict
+- Zod na fronteira (HTTP/CLI)
+- Testes: `node:test` via tsx
+- Express com MySQL como banco
+
+## Comandos
+- `npm run dev` — `tsx src/index.ts`
+- `npm run arena` — `tsx src/arena.ts`
+- `npm run bench` — `tsx src/bench.ts`
+- `npm test` — `node --import tsx --test "src/**/*.test.ts"`
+- `npm run typecheck` — `tsc --noEmit`
+
+## Convenções
+- Camadas: Model, service, controller
+- Entrada externa validada com Zod
+- Erros de domínio: classes, traduzidas na borda
+- Lógica nova nasce com teste
+- Funções puras
+- `typecheck` e `test` sempre verdes
+- Nunca commitiar secrets; nunca ler `.env`
+
+## Fluxo
+Spec Kit (Cursor). Artefatos em `specs/`, versionados no git.
+`/speckit-constitution` uma vez.
+Por feature, com revisão humana entre fases: `/speckit-specify` → `/speckit-plan` → `/speckit-tasks` → `/speckit-implement` → `/speckit-converge`.
