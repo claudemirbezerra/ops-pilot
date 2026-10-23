@@ -19,12 +19,20 @@ export type StrategyResult = {
   metrics: Metrics;
 };
 
+export type StrategyName =
+  | "react"
+  | "plan-and-execute"
+  | "reflect:react"
+  | "reflect:plan-and-execute";
+
 export type StrategyOptions = {
   maxIterations: number;
+  /** Regenerations after reject; default 2 at the arena border. Inteiro ≥ 1. */
+  maxReflections?: number;
 };
 
 export type ReasoningStrategy = {
-  name: "react" | "plan-and-execute";
+  name: StrategyName;
   run(input: string, options: StrategyOptions): Promise<StrategyResult>;
 };
 

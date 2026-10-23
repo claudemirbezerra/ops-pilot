@@ -22,3 +22,5 @@ export class MissingModelConfigError extends DomainError {}
 export class UnknownStrategyError extends DomainError {}
 
 export class EmptyStrategySelectionError extends DomainError {}
+
+export class InvalidMaxReflectionsError extends DomainError {}

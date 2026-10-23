@@ -4,16 +4,26 @@ import { z } from "zod";
 
 import { planAndExecuteStrategy } from "./agents/plan-and-execute.js";
 import { reactStrategy } from "./agents/react.js";
-import type { ReasoningStrategy } from "./agents/strategy.js";
+import {
+  createReflectPlanAndExecuteStrategy,
+  createReflectReactStrategy,
+} from "./agents/reflection.js";
+import type { ReasoningStrategy, StrategyName } from "./agents/strategy.js";
 import { formatTrace } from "./agents/trace.js";
 import {
   DomainError,
   EmptyStrategySelectionError,
+  InvalidMaxReflectionsError,
   MissingModelConfigError,
   UnknownStrategyError,
 } from "./domain/errors.js";
 
-const strategyNameSchema = z.enum(["react", "plan-and-execute"]);
+const strategyNameSchema = z.enum([
+  "react",
+  "plan-and-execute",
+  "reflect:react",
+  "reflect:plan-and-execute",
+]);
 
 const arenaArgsSchema = z.object({
   strategies: z
@@ -23,15 +33,20 @@ const arenaArgsSchema = z.object({
       message: "Não repita o mesmo nome de estratégia.",
     }),
   maxIterations: z.number().int().min(1).default(8),
+  maxReflections: z.number().int().min(1).default(2),
   input: z.string().default(""),
 });
 
-const strategiesByName: Record<z.infer<typeof strategyNameSchema>, ReasoningStrategy> = {
+const strategiesByName: Record<StrategyName, ReasoningStrategy> = {
   react: reactStrategy,
   "plan-and-execute": planAndExecuteStrategy,
+  "reflect:react": createReflectReactStrategy(),
+  "reflect:plan-and-execute": createReflectPlanAndExecuteStrategy(),
 };
 
 export type ArenaArgs = z.infer<typeof arenaArgsSchema>;
+
+const KNOWN_STRATEGIES = new Set<string>(strategyNameSchema.options);
 
 export function parseArenaArgs(argv: string[]): ArenaArgs {
   const flags = new Map<string, string>();
@@ -71,7 +86,7 @@ export function parseArenaArgs(argv: string[]): ArenaArgs {
   }
 
   for (const name of rawStrategies) {
-    if (name !== "react" && name !== "plan-and-execute") {
+    if (!KNOWN_STRATEGIES.has(name)) {
       throw new UnknownStrategyError(`Estratégia desconhecida: ${name}.`);
     }
   }
@@ -80,14 +95,37 @@ export function parseArenaArgs(argv: string[]): ArenaArgs {
   const maxIterations =
     maxRaw === undefined || maxRaw === "" ? 8 : Number(maxRaw);
 
+  const reflectionsRaw = flags.get("max-reflections");
+  const maxReflections =
+    reflectionsRaw === undefined || reflectionsRaw === ""
+      ? 2
+      : Number(reflectionsRaw);
+
+  if (
+    reflectionsRaw !== undefined &&
+    reflectionsRaw !== "" &&
+    (!Number.isInteger(maxReflections) || maxReflections < 1)
+  ) {
+    throw new InvalidMaxReflectionsError(
+      `Teto de reflexões inválido: ${reflectionsRaw}. Use um inteiro ≥ 1.`,
+    );
+  }
+
   const parsed = arenaArgsSchema.safeParse({
     strategies: rawStrategies,
     maxIterations,
+    maxReflections,
     input: flags.get("input") ?? "",
   });
 
   if (!parsed.success) {
     const message = parsed.error.issues.map((issue) => issue.message).join("; ");
+    const reflectionsIssue = parsed.error.issues.some((issue) =>
+      issue.path.includes("maxReflections"),
+    );
+    if (reflectionsIssue) {
+      throw new InvalidMaxReflectionsError(message);
+    }
     throw new EmptyStrategySelectionError(message);
   }
 
@@ -101,6 +139,7 @@ export async function runArena(args: ArenaArgs): Promise<string> {
     const strategy = strategiesByName[name];
     const result = await strategy.run(args.input, {
       maxIterations: args.maxIterations,
+      maxReflections: args.maxReflections,
     });
 
     blocks.push(
@@ -125,6 +164,7 @@ async function main(): Promise<void> {
     if (
       error instanceof EmptyStrategySelectionError ||
       error instanceof UnknownStrategyError ||
+      error instanceof InvalidMaxReflectionsError ||
       error instanceof MissingModelConfigError ||
       error instanceof DomainError
     ) {

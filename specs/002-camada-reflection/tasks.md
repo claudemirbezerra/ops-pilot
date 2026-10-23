@@ -22,8 +22,8 @@
 
 **Purpose**: Abrir os módulos previstos no plan.md sem alterar o comportamento do núcleo `001`.
 
-- [ ] T001 Create stub modules `src/agents/reflection.ts` and `src/agents/critic.ts` exporting placeholder symbols so TypeScript ESM paths resolve
-- [ ] T002 Confirm `npm run typecheck` and `npm test` stay green on the existing `001` agents/arena before reflection logic lands
+- [X] T001 Create stub modules `src/agents/reflection.ts` and `src/agents/critic.ts` exporting placeholder symbols so TypeScript ESM paths resolve
+- [X] T002 Confirm `npm run typecheck` and `npm test` stay green on the existing `001` agents/arena before reflection logic lands
 
 ---
 
@@ -33,10 +33,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Add `InvalidMaxReflectionsError` (extends `DomainError`) in `src/domain/errors.ts` for teto de reflexões menor que 1
-- [ ] T004 Extend `StrategyOptions` in `src/agents/strategy.ts` with `maxReflections` (inteiro ≥ 1; default semantics documented as 2 at the arena border) and widen strategy `name` to include `"reflect:react"` | `"reflect:plan-and-execute"` alongside `"react"` | `"plan-and-execute"`
-- [ ] T005 [P] Define `CritiqueDecision` (`approved`: boolean; `feedback`: string, may be empty) and injectable `Critic` port `evaluate({ input, answer, observations })` in `src/agents/critic.ts` per `contracts/reflection-layer.md` and `data-model.md`
-- [ ] T006 [P] Implement pure helpers in `src/agents/reflection.ts`: `extractObservations(trace)` (`type === "observation"`), `buildFeedbackInput(original, feedback)` (pedido original intacto + bloco de feedback; empty/whitespace feedback on reject → texto padrão de reprovação sem detalhe), `formatCritiqueContent(decision)` (legível: aprovação/reprovação + feedback), `ensureFinalAnswer(trace, answer)` (último evento é `answer` com o mesmo `content` que `answer`)
+- [X] T003 Add `InvalidMaxReflectionsError` (extends `DomainError`) in `src/domain/errors.ts` for teto de reflexões menor que 1
+- [X] T004 Extend `StrategyOptions` in `src/agents/strategy.ts` with `maxReflections` (inteiro ≥ 1; default semantics documented as 2 at the arena border) and widen strategy `name` to include `"reflect:react"` | `"reflect:plan-and-execute"` alongside `"react"` | `"plan-and-execute"`
+- [X] T005 [P] Define `CritiqueDecision` (`approved`: boolean; `feedback`: string, may be empty) and injectable `Critic` port `evaluate({ input, answer, observations })` in `src/agents/critic.ts` per `contracts/reflection-layer.md` and `data-model.md`
+- [X] T006 [P] Implement pure helpers in `src/agents/reflection.ts`: `extractObservations(trace)` (`type === "observation"`), `buildFeedbackInput(original, feedback)` (pedido original intacto + bloco de feedback; empty/whitespace feedback on reject → texto padrão de reprovação sem detalhe), `formatCritiqueContent(decision)` (legível: aprovação/reprovação + feedback), `ensureFinalAnswer(trace, answer)` (último evento é `answer` com o mesmo `content` que `answer`)
 
 **Checkpoint**: Foundation ready — user story implementation can begin
 
@@ -52,13 +52,13 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T007 [P] [US1] Add failing tests in `src/agents/reflection.test.ts`: mock base runs once then mock critic approves; result has a `critique` event; last event is `answer` matching `result.answer`; empty/whitespace `input` returns empty-input shape and never calls the critic (FR-013)
+- [X] T007 [P] [US1] Add failing tests in `src/agents/reflection.test.ts`: mock base runs once then mock critic approves; result has a `critique` event; last event is `answer` matching `result.answer`; empty/whitespace `input` returns empty-input shape and never calls the critic (FR-013)
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Implement production `createLlmCritic` in `src/agents/critic.ts` using `createModel()` + `withStructuredOutput` Zod schema `{ approved: boolean, feedback: string }`, temperature 0 / same OpenRouter factory; prompt includes pedido, resposta candidata, and observations (absence of observations must not block evaluation)
-- [ ] T009 [US1] Implement `wrapWithReflection({ base, critic, name })` in `src/agents/reflection.ts` per `contracts/reflection-layer.md` steps 1–7 for the approve path: run base first with `maxIterations`, then critic, append `critique` via `formatCritiqueContent`, on `approved` call `ensureFinalAnswer` and return; do not invent critique when blank input short-circuits
-- [ ] T010 [US1] Wire factory helpers `reflectReactStrategy` / `reflectPlanAndExecuteStrategy` (or equivalent) in `src/agents/reflection.ts` that wrap `reactStrategy` / `planAndExecuteStrategy` with `createLlmCritic` and names `"reflect:react"` / `"reflect:plan-and-execute"`
+- [X] T008 [US1] Implement production `createLlmCritic` in `src/agents/critic.ts` using `createModel()` + `withStructuredOutput` Zod schema `{ approved: boolean, feedback: string }`, temperature 0 / same OpenRouter factory; prompt includes pedido, resposta candidata, and observations (absence of observations must not block evaluation)
+- [X] T009 [US1] Implement `wrapWithReflection({ base, critic, name })` in `src/agents/reflection.ts` per `contracts/reflection-layer.md` steps 1–7 for the approve path: run base first with `maxIterations`, then critic, append `critique` via `formatCritiqueContent`, on `approved` call `ensureFinalAnswer` and return; do not invent critique when blank input short-circuits
+- [X] T010 [US1] Wire factory helpers `reflectReactStrategy` / `reflectPlanAndExecuteStrategy` (or equivalent) in `src/agents/reflection.ts` that wrap `reactStrategy` / `planAndExecuteStrategy` with `createLlmCritic` and names `"reflect:react"` / `"reflect:plan-and-execute"`
 
 **Checkpoint**: US1 independently testable offline with approving critic stub
 
@@ -72,12 +72,12 @@
 
 ### Tests for User Story 2
 
-- [ ] T011 [P] [US2] Extend `src/agents/reflection.test.ts` with failing cases: always-reject critic + `maxReflections: 2` yields ≤ 2 regenerations after initial base run (≤ 3 `base.run` total) and matching `critique` count; approve on first critique yields zero regenerations; empty feedback on reject still regenerates using default reject text in `buildFeedbackInput`
+- [X] T011 [P] [US2] Extend `src/agents/reflection.test.ts` with failing cases: always-reject critic + `maxReflections: 2` yields ≤ 2 regenerations after initial base run (≤ 3 `base.run` total) and matching `critique` count; approve on first critique yields zero regenerations; empty feedback on reject still regenerates using default reject text in `buildFeedbackInput`
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] Complete the regeneration loop in `src/agents/reflection.ts`: on reject with regenerations remaining, rebuild input via `buildFeedbackInput`, decrement remaining (`regenerações_restantes` starts at `maxReflections`), re-run base; on teto esgotado return last base answer with full critique history and `ensureFinalAnswer`
-- [ ] T013 [US2] Handle critic unavailability in `src/agents/reflection.ts`: catch evaluate failure, append legible `critique` declaring indisponibilidade (sem inventar aprovação), return last base answer; if base fails before a candidata útil on the first pass, propagate base result without inventing a critique
+- [X] T012 [US2] Complete the regeneration loop in `src/agents/reflection.ts`: on reject with regenerations remaining, rebuild input via `buildFeedbackInput`, decrement remaining (`regenerações_restantes` starts at `maxReflections`), re-run base; on teto esgotado return last base answer with full critique history and `ensureFinalAnswer`
+- [X] T013 [US2] Handle critic unavailability in `src/agents/reflection.ts`: catch evaluate failure, append legible `critique` declaring indisponibilidade (sem inventar aprovação), return last base answer; if base fails before a candidata útil on the first pass, propagate base result without inventing a critique
 
 **Checkpoint**: US1 + US2 cycle (approve / regenerate / ceiling / critic down) works with stubs
 
@@ -91,11 +91,11 @@
 
 ### Tests for User Story 3
 
-- [ ] T014 [P] [US3] Extend `src/agents/reflection.test.ts` with failing assertions: `llmCalls` equals sum of each `base.run` metrics plus critic calls; `latencyMs` is wall-clock of the wrapper (not merely last base latency)
+- [X] T014 [P] [US3] Extend `src/agents/reflection.test.ts` with failing assertions: `llmCalls` equals sum of each `base.run` metrics plus critic calls; `latencyMs` is wall-clock of the wrapper (not merely last base latency)
 
 ### Implementation for User Story 3
 
-- [ ] T015 [US3] Accumulate `llmCalls` across base runs and production critic invocations inside `wrapWithReflection` in `src/agents/reflection.ts` (stubs may contribute 0 for critic); measure `latencyMs` with a single wall-clock span around the full loop per `contracts/reflection-layer.md` and FR-009
+- [X] T015 [US3] Accumulate `llmCalls` across base runs and production critic invocations inside `wrapWithReflection` in `src/agents/reflection.ts` (stubs may contribute 0 for critic); measure `latencyMs` with a single wall-clock span around the full loop per `contracts/reflection-layer.md` and FR-009
 
 **Checkpoint**: Metrics of a reflected run honestly include critic and regenerations
 
@@ -109,12 +109,12 @@
 
 ### Tests for User Story 4
 
-- [ ] T016 [P] [US4] Extend `src/agents/arena-args.test.ts` with failing cases: `--strategies reflect:react` and `reflect:plan-and-execute` parse; absent `--max-reflections` defaults to 2; `reflect:foo` throws `UnknownStrategyError` citing the name; `--max-reflections 0` throws `InvalidMaxReflectionsError`; bases `react`/`plan-and-execute` still parse; duplicate names still invalid
+- [X] T016 [P] [US4] Extend `src/agents/arena-args.test.ts` with failing cases: `--strategies reflect:react` and `reflect:plan-and-execute` parse; absent `--max-reflections` defaults to 2; `reflect:foo` throws `UnknownStrategyError` citing the name; `--max-reflections 0` throws `InvalidMaxReflectionsError`; bases `react`/`plan-and-execute` still parse; duplicate names still invalid
 
 ### Implementation for User Story 4
 
-- [ ] T017 [US4] Update Zod/`parseArenaArgs` in `src/arena.ts` to accept strategy enum `react` | `plan-and-execute` | `reflect:react` | `reflect:plan-and-execute`, parse `--max-reflections` (inteiro ≥ 1, default 2), throw domain errors before any model call per `contracts/arena-cli.md`
-- [ ] T018 [US4] Register reflected strategies in `strategiesByName` inside `src/arena.ts`, pass `{ maxIterations, maxReflections }` into `run`, and keep stdout contract (`strategy=<name>`, formatted trace, `metrics.llmCalls` / `metrics.latencyMs`)
+- [X] T017 [US4] Update Zod/`parseArenaArgs` in `src/arena.ts` to accept strategy enum `react` | `plan-and-execute` | `reflect:react` | `reflect:plan-and-execute`, parse `--max-reflections` (inteiro ≥ 1, default 2), throw domain errors before any model call per `contracts/arena-cli.md`
+- [X] T018 [US4] Register reflected strategies in `strategiesByName` inside `src/arena.ts`, pass `{ maxIterations, maxReflections }` into `run`, and keep stdout contract (`strategy=<name>`, formatted trace, `metrics.llmCalls` / `metrics.latencyMs`)
 
 **Checkpoint**: Arena can select and print reflected strategies; invalid flags fail closed
 
@@ -128,11 +128,11 @@
 
 ### Tests for User Story 5
 
-- [ ] T019 [P] [US5] Extend `src/agents/reflection.test.ts` so the always-reject + `maxReflections: 2` scenario run twice yields identical `formatTrace(result.trace)` text (includes `[critique]`) and the same stop rule; assert no network imports/calls in the test path
+- [X] T019 [P] [US5] Extend `src/agents/reflection.test.ts` so the always-reject + `maxReflections: 2` scenario run twice yields identical `formatTrace(result.trace)` text (includes `[critique]`) and the same stop rule; assert no network imports/calls in the test path
 
 ### Implementation for User Story 5
 
-- [ ] T020 [US5] Close any gaps so stub-only paths in `src/agents/reflection.ts` / `src/agents/critic.ts` never touch OpenRouter; export test-friendly `wrapWithReflection` injection points if still missing; keep `npm test` fully offline for this suite
+- [X] T020 [US5] Close any gaps so stub-only paths in `src/agents/reflection.ts` / `src/agents/critic.ts` never touch OpenRouter; export test-friendly `wrapWithReflection` injection points if still missing; keep `npm test` fully offline for this suite
 
 **Checkpoint**: FR-014 / SC-006 satisfied without external services
 
@@ -142,8 +142,8 @@
 
 **Purpose**: Verificação final alinhada ao quickstart e qualidade da suíte.
 
-- [ ] T021 [P] Align comments/exports in `src/agents/reflection.ts` and `src/agents/critic.ts` with `specs/002-camada-reflection/contracts/reflection-layer.md` (no behavior drift)
-- [ ] T022 Run `npm run typecheck` and `npm test` green; smoke-check scenarios listed in `specs/002-camada-reflection/quickstart.md` §§1 and 5 (offline + arena border cases) and fix any remaining gaps in `src/arena.ts` / tests
+- [X] T021 [P] Align comments/exports in `src/agents/reflection.ts` and `src/agents/critic.ts` with `specs/002-camada-reflection/contracts/reflection-layer.md` (no behavior drift)
+- [X] T022 Run `npm run typecheck` and `npm test` green; smoke-check scenarios listed in `specs/002-camada-reflection/quickstart.md` §§1 and 5 (offline + arena border cases) and fix any remaining gaps in `src/arena.ts` / tests
 
 ---
 
