@@ -9,6 +9,7 @@ import {
   type StrategyOptions,
 } from "./strategy.js";
 import { createCountingModel } from "./model.js";
+import { createStoreHolder } from "./store.js";
 import { createOpsTools } from "./tools.js";
 import {
   countAiMessages,
@@ -27,7 +28,8 @@ export const reactStrategy: ReasoningStrategy = {
 
     return runWithMetrics(async () => {
       const { model, getLlmCalls } = createCountingModel(options.maxIterations);
-      const { tools } = createOpsTools();
+      const holder = options.storeHolder ?? createStoreHolder();
+      const { tools } = createOpsTools(holder);
 
       try {
         const agent = createReactAgent({

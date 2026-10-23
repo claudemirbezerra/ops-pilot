@@ -1,5 +1,5 @@
 import { AIMessage } from "@langchain/core/messages";
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatOpenAI, type ChatOpenAIFields } from "@langchain/openai";
 
 import { MissingModelConfigError } from "../domain/errors.js";
 import { buildLimitReachedAnswer } from "./strategy.js";
@@ -8,6 +8,10 @@ export type ModelEnv = {
   OPENROUTER_API_KEY?: string;
   OPENROUTER_MODEL?: string;
 };
+
+/** Evita hang eterno quando OpenRouter/TLS não responde (default do SDK: timeout undefined). */
+export const MODEL_REQUEST_TIMEOUT_MS = 60_000;
+export const MODEL_MAX_RETRIES = 2;
 
 function readModelConfig(env: ModelEnv): { apiKey: string; model: string } {
   const apiKey = env.OPENROUTER_API_KEY?.trim() ?? "";
@@ -22,17 +26,22 @@ function readModelConfig(env: ModelEnv): { apiKey: string; model: string } {
   return { apiKey, model };
 }
 
-export function createModel(env: ModelEnv = process.env): ChatOpenAI {
-  const { apiKey, model } = readModelConfig(env);
-
-  return new ChatOpenAI({
+function openRouterFields(apiKey: string, model: string): ChatOpenAIFields {
+  return {
     model,
     temperature: 0,
     apiKey,
+    timeout: MODEL_REQUEST_TIMEOUT_MS,
+    maxRetries: MODEL_MAX_RETRIES,
     configuration: {
       baseURL: "https://openrouter.ai/api/v1",
     },
-  });
+  };
+}
+
+export function createModel(env: ModelEnv = process.env): ChatOpenAI {
+  const { apiKey, model } = readModelConfig(env);
+  return new ChatOpenAI(openRouterFields(apiKey, model));
 }
 
 export type LimitedModel = {
@@ -64,14 +73,7 @@ export function createCountingModel(
   }
 
   return {
-    model: new CountingChatOpenAI({
-      model,
-      temperature: 0,
-      apiKey,
-      configuration: {
-        baseURL: "https://openrouter.ai/api/v1",
-      },
-    }),
+    model: new CountingChatOpenAI(openRouterFields(apiKey, model)),
     getLlmCalls: () => llmCalls,
   };
 }

@@ -1,3 +1,5 @@
+import type { StoreHolder } from "./store.js";
+
 export type ToolName = "list_alertas" | "open_incident" | "resolver_incident";
 
 export type TraceEvent =
@@ -29,6 +31,10 @@ export type StrategyOptions = {
   maxIterations: number;
   /** Regenerations after reject; default 2 at the arena border. Inteiro ≥ 1. */
   maxReflections?: number;
+  /** Optional in-memory store for tools (bench). Default: JSON DB holder. */
+  storeHolder?: StoreHolder;
+  /** Plan-and-Execute only: skip the replanner node. */
+  noReplanner?: boolean;
 };
 
 export type ReasoningStrategy = {

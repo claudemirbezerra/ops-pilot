@@ -14,6 +14,7 @@ import {
   type ToolName,
   type TraceEvent,
 } from "./strategy.js";
+import { createStoreHolder, type StoreHolder } from "./store.js";
 import { createOpsTools } from "./tools.js";
 import { ensureAnswerEvent } from "./trace.js";
 
@@ -94,12 +95,16 @@ function asToolName(name: string): ToolName {
   return "list_alertas";
 }
 
-function createPlanExecuteGraph() {
+function createPlanExecuteGraph(
+  holder: StoreHolder,
+  options: { noReplanner?: boolean } = {},
+) {
   const model = createModel();
-  const { tools } = createOpsTools();
+  const { tools } = createOpsTools(holder);
   const toolsByName = new Map<string, (typeof tools)[number]>(
     tools.map((item) => [item.name, item]),
   );
+  const noReplanner = options.noReplanner === true;
 
   async function planner(state: PEStateType): Promise<Partial<PEStateType>> {
     const plan = await model.withStructuredOutput(planSchema).invoke([
@@ -269,12 +274,23 @@ function createPlanExecuteGraph() {
     return "executor";
   }
 
-  return new StateGraph(PEState)
+  const graph = new StateGraph(PEState)
     .addNode("planner", planner)
     .addNode("executor", executor)
-    .addNode("replanner", replanner)
     .addEdge(START, "planner")
-    .addEdge("planner", "executor")
+    .addEdge("planner", "executor");
+
+  if (noReplanner) {
+    return graph
+      .addConditionalEdges("executor", shouldContinue, {
+        executor: "executor",
+        [END]: END,
+      })
+      .compile();
+  }
+
+  return graph
+    .addNode("replanner", replanner)
     .addEdge("executor", "replanner")
     .addConditionalEdges("replanner", shouldContinue, {
       executor: "executor",
@@ -293,16 +309,25 @@ export const planAndExecuteStrategy: ReasoningStrategy = {
 
     return runWithMetrics(async () => {
       try {
-        const graph = createPlanExecuteGraph();
-        const finalState = await graph.invoke({
-          input,
-          plan: [],
-          done: [],
-          answer: "",
-          maxIterations: options.maxIterations,
-          trace: [],
-          llmCalls: 0,
+        const holder = options.storeHolder ?? createStoreHolder();
+        const graph = createPlanExecuteGraph(holder, {
+          noReplanner: options.noReplanner,
         });
+        const finalState = await graph.invoke(
+          {
+            input,
+            plan: [],
+            done: [],
+            answer: "",
+            maxIterations: options.maxIterations,
+            trace: [],
+            llmCalls: 0,
+          },
+          {
+            // planner + (executor+replanner)*N — corta grafo se o replanner oscilar
+            recursionLimit: Math.max(options.maxIterations * 3, 8),
+          },
+        );
 
         let answer = finalState.answer?.trim() ?? "";
         if (!answer) {
