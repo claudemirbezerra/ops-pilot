@@ -8,3 +8,17 @@ export class DomainError extends Error {
 export class InvalidCatalogError extends DomainError {}
 
 export class InvalidDatabaseConfigError extends DomainError {}
+
+export class InvalidAlertStatusError extends DomainError {}
+
+export class UnknownServiceError extends DomainError {}
+
+export class UnknownIncidentError extends DomainError {}
+
+export class InvalidIncidentInputError extends DomainError {}
+
+export class MissingModelConfigError extends DomainError {}
+
+export class UnknownStrategyError extends DomainError {}
+
+export class EmptyStrategySelectionError extends DomainError {}

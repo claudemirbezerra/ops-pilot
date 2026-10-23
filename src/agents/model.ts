@@ -1,0 +1,77 @@
+import { AIMessage } from "@langchain/core/messages";
+import { ChatOpenAI } from "@langchain/openai";
+
+import { MissingModelConfigError } from "../domain/errors.js";
+import { buildLimitReachedAnswer } from "./strategy.js";
+
+export type ModelEnv = {
+  OPENROUTER_API_KEY?: string;
+  OPENROUTER_MODEL?: string;
+};
+
+function readModelConfig(env: ModelEnv): { apiKey: string; model: string } {
+  const apiKey = env.OPENROUTER_API_KEY?.trim() ?? "";
+  const model = env.OPENROUTER_MODEL?.trim() ?? "";
+
+  if (!apiKey || !model) {
+    throw new MissingModelConfigError(
+      "Defina OPENROUTER_API_KEY e OPENROUTER_MODEL no ambiente do processo.",
+    );
+  }
+
+  return { apiKey, model };
+}
+
+export function createModel(env: ModelEnv = process.env): ChatOpenAI {
+  const { apiKey, model } = readModelConfig(env);
+
+  return new ChatOpenAI({
+    model,
+    temperature: 0,
+    apiKey,
+    configuration: {
+      baseURL: "https://openrouter.ai/api/v1",
+    },
+  });
+}
+
+export type LimitedModel = {
+  model: ChatOpenAI;
+  getLlmCalls: () => number;
+};
+
+/** ChatOpenAI that counts real invokes and stops after maxIterations. */
+export function createCountingModel(
+  maxIterations: number,
+  env: ModelEnv = process.env,
+): LimitedModel {
+  const { apiKey, model } = readModelConfig(env);
+  let llmCalls = 0;
+  const limitMessage = buildLimitReachedAnswer(maxIterations);
+
+  class CountingChatOpenAI extends ChatOpenAI {
+    override async invoke(
+      input: Parameters<ChatOpenAI["invoke"]>[0],
+      options?: Parameters<ChatOpenAI["invoke"]>[1],
+    ): Promise<Awaited<ReturnType<ChatOpenAI["invoke"]>>> {
+      if (llmCalls >= maxIterations) {
+        return new AIMessage(limitMessage) as Awaited<ReturnType<ChatOpenAI["invoke"]>>;
+      }
+
+      llmCalls += 1;
+      return super.invoke(input, options);
+    }
+  }
+
+  return {
+    model: new CountingChatOpenAI({
+      model,
+      temperature: 0,
+      apiKey,
+      configuration: {
+        baseURL: "https://openrouter.ai/api/v1",
+      },
+    }),
+    getLlmCalls: () => llmCalls,
+  };
+}
