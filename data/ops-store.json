@@ -70,6 +70,14 @@
       "severity": "critical"
     }
   ],
-  "incidents": [],
-  "nextIncidentId": 1
+  "incidents": [
+    {
+      "id": 1,
+      "title": "Checkout crítico",
+      "serviceSlug": "checkout",
+      "severity": "critical",
+      "status": "resolved"
+    }
+  ],
+  "nextIncidentId": 2
 }

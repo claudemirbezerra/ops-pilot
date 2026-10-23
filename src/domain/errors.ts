@@ -24,3 +24,10 @@ export class UnknownStrategyError extends DomainError {}
 export class EmptyStrategySelectionError extends DomainError {}
 
 export class InvalidMaxReflectionsError extends DomainError {}
+
+export class ChatTimeoutError extends DomainError {
+  constructor(timeoutMs: number) {
+    const seconds = timeoutMs / 1000;
+    super(`Tempo esgotado: a resposta não ficou pronta em ${seconds} segundos.`);
+  }
+}
