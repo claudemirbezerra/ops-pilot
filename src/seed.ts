@@ -1,31 +1,25 @@
-import { readDatabaseConfig } from "./db/config.js";
 import { DomainError } from "./domain/errors.js";
-import { seedPrimaryCatalog } from "./services/catalog-seed-service.js";
+import { OPS_STORE_JSON, seedJsonStore } from "./seed/json-db.js";
 
 async function main(): Promise<void> {
-  let password = "";
-
   try {
-    const config = readDatabaseConfig(process.env);
-    password = config.password;
-    const summary = await seedPrimaryCatalog(config);
+    const summary = seedJsonStore();
     console.log(
-      `Catálogo carregado: ${summary.services} serviços, ${summary.alerts} alertas (${summary.firing} em disparo, ${summary.resolved} resolvidos).`,
+      `Catálogo carregado em ${OPS_STORE_JSON}: ${summary.services} serviços, ${summary.alerts} alertas (${summary.firing} em disparo, ${summary.resolved} resolvidos).`,
     );
   } catch (error: unknown) {
-    console.error(safeMessage(error, password));
+    console.error(safeMessage(error));
     process.exitCode = 1;
   }
 }
 
-function safeMessage(error: unknown, password: string): string {
+function safeMessage(error: unknown): string {
   if (error instanceof DomainError) {
     return error.message;
   }
 
   const message = error instanceof Error ? error.message : "erro desconhecido";
-  const redacted = password.length > 0 ? message.replaceAll(password, "***") : message;
-  return `Falha ao carregar o catálogo: ${redacted}`;
+  return `Falha ao carregar o catálogo: ${message}`;
 }
 
 void main();

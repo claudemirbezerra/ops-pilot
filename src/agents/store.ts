@@ -4,6 +4,7 @@ import {
   UnknownIncidentError,
   UnknownServiceError,
 } from "../domain/errors.js";
+import { loadJsonStore, saveJsonStore } from "../seed/json-db.js";
 import { primaryCatalog } from "../seed/primary-catalog.js";
 
 export type AlertStatus = "firing" | "resolved";
@@ -46,6 +47,7 @@ export type CatalogCounts = {
   resolved: number;
 };
 
+/** Cópia pura do catálogo versionado (sem I/O) — usada nos testes determinísticos. */
 export function createStoreFromPrimaryCatalog(): Store {
   return {
     services: primaryCatalog.services.map((service) => ({ ...service })),
@@ -53,6 +55,15 @@ export function createStoreFromPrimaryCatalog(): Store {
     incidents: [],
     nextIncidentId: 1,
   };
+}
+
+/** Store ligado ao JSON em `data/ops-store.json`. */
+export function createStoreFromJsonDb(): Store {
+  return loadJsonStore();
+}
+
+export function persistStore(store: Store): void {
+  saveJsonStore(store);
 }
 
 export function summarizeStore(store: Store): CatalogCounts {
@@ -132,8 +143,18 @@ export function resolveIncident(
 
 export type StoreHolder = {
   current: Store;
+  persist?: boolean;
 };
 
-export function createStoreHolder(store: Store = createStoreFromPrimaryCatalog()): StoreHolder {
-  return { current: store };
+export function createStoreHolder(
+  store: Store = createStoreFromJsonDb(),
+  options: { persist?: boolean } = { persist: true },
+): StoreHolder {
+  return { current: store, persist: options.persist ?? true };
+}
+
+export function commitStore(holder: StoreHolder): void {
+  if (holder.persist) {
+    persistStore(holder.current);
+  }
 }

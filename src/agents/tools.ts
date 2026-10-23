@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { DomainError } from "../domain/errors.js";
 import {
+  commitStore,
   createStoreHolder,
   listAlerts,
   openIncident,
@@ -49,6 +50,7 @@ export function createOpsTools(holder: StoreHolder = createStoreHolder()) {
           severity: severity as Severity,
         });
         holder.current = result.store;
+        commitStore(holder);
         return JSON.stringify(result.incident);
       } catch (error: unknown) {
         return asObservation(error);
@@ -71,6 +73,7 @@ export function createOpsTools(holder: StoreHolder = createStoreHolder()) {
       try {
         const result = resolveIncident(holder.current, id);
         holder.current = result.store;
+        commitStore(holder);
         return JSON.stringify(result.incident);
       } catch (error: unknown) {
         return asObservation(error);

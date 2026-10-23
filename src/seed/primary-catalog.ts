@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { z } from "zod";
 
 import { InvalidCatalogError } from "../domain/errors.js";
@@ -36,80 +40,6 @@ export type CatalogSummary = {
   resolved: number;
 };
 
-const primaryCatalogInput = {
-  services: [
-    {
-      slug: "api-gateway",
-      name: "API Gateway",
-      description: "Entrada HTTP do produto.",
-    },
-    {
-      slug: "checkout",
-      name: "Checkout",
-      description: "Fechamento de pedido.",
-    },
-    {
-      slug: "payments",
-      name: "Pagamentos",
-      description: "Autorização e captura.",
-    },
-    {
-      slug: "auth",
-      name: "Autenticação",
-      description: "Login e sessão.",
-    },
-    {
-      slug: "notifications",
-      name: "Notificações",
-      description: "E-mail e push.",
-    },
-  ],
-  alerts: [
-    {
-      serviceSlug: "checkout",
-      title: "Taxa de erro 5xx no checkout",
-      detail: "Mais de 8% das finalizações retornam 5xx nos últimos 5 minutos.",
-      status: "firing",
-      severity: "critical",
-    },
-    {
-      serviceSlug: "payments",
-      title: "Latência p99 de autorização",
-      detail: "A autorização de cartão está acima de 2 segundos.",
-      status: "firing",
-      severity: "high",
-    },
-    {
-      serviceSlug: "auth",
-      title: "Pico de falhas de login",
-      detail: "Aumento súbito de respostas 401 no fluxo de senha.",
-      status: "firing",
-      severity: "medium",
-    },
-    {
-      serviceSlug: "api-gateway",
-      title: "Certificado renovado",
-      detail: "O certificado da borda foi renovado antes do vencimento.",
-      status: "resolved",
-      severity: "low",
-    },
-    {
-      serviceSlug: "notifications",
-      title: "Fila de e-mail normalizada",
-      detail: "O atraso da fila de envio voltou ao patamar habitual.",
-      status: "resolved",
-      severity: "high",
-    },
-    {
-      serviceSlug: "checkout",
-      title: "Checkout indisponível recuperado",
-      detail: "A queda total do checkout foi revertida após o rollback.",
-      status: "resolved",
-      severity: "critical",
-    },
-  ],
-} as const;
-
 export function parsePrimaryCatalog(input: unknown): PrimaryCatalog {
   const parsed = catalogSchema.safeParse(input);
   if (!parsed.success) {
@@ -129,7 +59,19 @@ export function summarizeCatalog(catalog: PrimaryCatalog): CatalogSummary {
   };
 }
 
-export const primaryCatalog = parsePrimaryCatalog(primaryCatalogInput);
+function loadPrimaryCatalogFromJson(): PrimaryCatalog {
+  const path = join(dirname(fileURLToPath(import.meta.url)), "primary-catalog.json");
+  const raw = JSON.parse(readFileSync(path, "utf8")) as {
+    services?: unknown;
+    alerts?: unknown;
+  };
+  return parsePrimaryCatalog({
+    services: raw.services,
+    alerts: raw.alerts,
+  });
+}
+
+export const primaryCatalog = loadPrimaryCatalogFromJson();
 
 function assertCatalogRules(catalog: PrimaryCatalog): void {
   const slugs = catalog.services.map((service) => service.slug);

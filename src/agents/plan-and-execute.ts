@@ -1,4 +1,4 @@
-import { HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import { z } from "zod";
 
@@ -11,35 +11,62 @@ import {
   runWithMetrics,
   type ReasoningStrategy,
   type StrategyOptions,
-  type TraceEvent,
   type ToolName,
+  type TraceEvent,
 } from "./strategy.js";
 import { createOpsTools } from "./tools.js";
 import { ensureAnswerEvent } from "./trace.js";
 
+const MAX_STEPS = 8;
+
+const PLANNER_PROMPT = `Você é o planner do OpsPilot.
+Produza passos curtos, ordenados e executáveis com as ferramentas list_alertas, open_incident e resolver_incident.
+No máximo ${MAX_STEPS} passos.`;
+
+const EXECUTOR_PROMPT = `Você é o executor do OpsPilot.
+Execute exatamente o passo indicado usando as ferramentas disponíveis quando necessário.
+Responda com o resultado objetivo do passo.`;
+
+const REPLANNER_PROMPT = `Você é o replanner do OpsPilot.
+Com base no pedido original, no plano restante e no histórico de passos já feitos (done),
+decida:
+- "seguir": continuar com o plano restante (ou informe steps atualizados se quiser podar)
+- "ajustar": substituir o plano restante por novos steps
+- "encerrar": pedido atendido; preencha answer
+Máximo de ${MAX_STEPS} passos no total (incluindo os já feitos).`;
+
 const planSchema = z.object({
-  steps: z.array(z.string().min(1)).min(1).max(8),
+  steps: z
+    .array(z.string())
+    .describe("passos curtos, ordenados, executáveis com as ferramentas disponíveis"),
 });
 
 const replanSchema = z.object({
-  critique: z.string().min(1),
-  done: z.boolean(),
-  steps: z.array(z.string().min(1)).max(8).default([]),
-  answer: z.string().optional(),
+  decision: z.enum(["ajustar", "seguir", "encerrar"]),
+  critique: z.string().describe("Breve revisão do que já foi feito e do que falta"),
+  steps: z
+    .array(z.string())
+    .max(MAX_STEPS)
+    .optional()
+    .describe("Novo plano restante quando decision for ajustar (ou podar em seguir)"),
+  answer: z.string().optional().describe("Resposta final quando decision for encerrar"),
 });
 
-const PlanState = Annotation.Root({
+/** Estado no formato do exemplo: plan + done (passos concluídos) + answer. */
+const PEState = Annotation.Root({
   input: Annotation<string>,
-  steps: Annotation<string[]>,
-  stepsTaken: Annotation<number>,
-  maxIterations: Annotation<number>,
+  plan: Annotation<string[]>,
+  done: Annotation<[string, string][]>({
+    reducer: (left, right) => left.concat(right),
+    default: () => [],
+  }),
   answer: Annotation<string>,
+  maxIterations: Annotation<number>,
   trace: Annotation<TraceEvent[]>,
   llmCalls: Annotation<number>,
-  done: Annotation<boolean>,
 });
 
-type PlanStateType = typeof PlanState.State;
+type PEStateType = typeof PEState.State;
 
 function messageContent(content: unknown): string {
   if (typeof content === "string") {
@@ -60,65 +87,63 @@ function messageContent(content: unknown): string {
   return content == null ? "" : String(content);
 }
 
-function createPlanGraph() {
+function asToolName(name: string): ToolName {
+  if (name === "list_alertas" || name === "open_incident" || name === "resolver_incident") {
+    return name;
+  }
+  return "list_alertas";
+}
+
+function createPlanExecuteGraph() {
   const model = createModel();
   const { tools } = createOpsTools();
   const toolsByName = new Map<string, (typeof tools)[number]>(
     tools.map((item) => [item.name, item]),
   );
 
-  const planner = async (state: PlanStateType): Promise<Partial<PlanStateType>> => {
-    const structured = model.withStructuredOutput(planSchema);
-    const plan = await structured.invoke([
-      new SystemMessage(
-        "Você é o planner do OpsPilot. Produza uma lista curta de passos (máximo 8) para resolver o pedido usando list_alertas, open_incident e resolver_incident.",
-      ),
-      new HumanMessage(state.input),
+  async function planner(state: PEStateType): Promise<Partial<PEStateType>> {
+    const plan = await model.withStructuredOutput(planSchema).invoke([
+      ["system", PLANNER_PROMPT],
+      ["user", state.input],
     ]);
 
-    const steps = plan.steps.slice(0, 8);
+    const steps = plan.steps.filter((step) => step.trim().length > 0).slice(0, MAX_STEPS);
     return {
-      steps,
+      plan: steps,
       llmCalls: state.llmCalls + 1,
       trace: [...state.trace, { type: "plan", steps }],
     };
-  };
+  }
 
-  const executor = async (state: PlanStateType): Promise<Partial<PlanStateType>> => {
-    if (
-      state.steps.length === 0 ||
-      state.stepsTaken >= 8 ||
-      state.stepsTaken >= state.maxIterations
-    ) {
-      return {
-        done: true,
-        answer: state.answer || buildLimitReachedAnswer(state.maxIterations),
-      };
+  async function executor(state: PEStateType): Promise<Partial<PEStateType>> {
+    if (state.plan.length === 0 || state.done.length >= MAX_STEPS) {
+      return {};
     }
 
-    const step = state.steps[0]!;
-    const remaining = state.steps.slice(1);
+    const step = state.plan[0]!;
+    const remaining = state.plan.slice(1);
     const bound = model.bindTools(tools);
+
     const ai = await bound.invoke([
-      new SystemMessage(
-        "Execute exatamente um passo operacional do plantão. Use as ferramentas quando necessário e responda de forma objetiva.",
+      new SystemMessage(EXECUTOR_PROMPT),
+      new HumanMessage(
+        JSON.stringify({
+          input: state.input,
+          step,
+          done: state.done,
+        }),
       ),
-      new HumanMessage(`Pedido original: ${state.input}\nPasso atual: ${step}`),
     ]);
 
     const events: TraceEvent[] = [];
-    const text = messageContent(ai.content);
-    if (text.length > 0) {
-      events.push({ type: "thought", content: text });
+    const thought = messageContent(ai.content);
+    if (thought.length > 0) {
+      events.push({ type: "thought", content: thought });
     }
 
+    const observations: string[] = [];
     for (const call of ai.tool_calls ?? []) {
-      const toolName = (["list_alertas", "open_incident", "resolver_incident"] as const).includes(
-        call.name as ToolName,
-      )
-        ? (call.name as ToolName)
-        : ("list_alertas" as ToolName);
-
+      const toolName = asToolName(call.name);
       events.push({
         type: "action",
         tool: toolName,
@@ -136,81 +161,115 @@ function createPlanGraph() {
         const raw = await invoke((call.args ?? {}) as Record<string, unknown>);
         observation = typeof raw === "string" ? raw : JSON.stringify(raw);
       }
+      observations.push(observation);
       events.push({ type: "observation", content: observation });
-      void new ToolMessage({
-        content: observation,
-        tool_call_id: call.id ?? call.name,
-      });
     }
 
+    const resultText =
+      observations.length > 0
+        ? observations.join("\n")
+        : thought || `Passo executado sem ferramenta: ${step}`;
+
     return {
-      steps: remaining,
-      stepsTaken: state.stepsTaken + 1,
+      plan: remaining,
+      done: [[step, resultText]],
       llmCalls: state.llmCalls + 1,
       trace: [...state.trace, ...events],
     };
-  };
+  }
 
-  const replanner = async (state: PlanStateType): Promise<Partial<PlanStateType>> => {
-    if (state.stepsTaken >= 8 || state.stepsTaken >= state.maxIterations) {
-      const answer = buildLimitReachedAnswer(Math.min(8, state.maxIterations));
+  async function replanner(state: PEStateType): Promise<Partial<PEStateType>> {
+    if (state.done.length >= MAX_STEPS || state.done.length >= state.maxIterations) {
+      const answer = buildLimitReachedAnswer(Math.min(MAX_STEPS, state.maxIterations));
       return {
-        done: true,
+        plan: [],
         answer,
-        steps: [],
         trace: [...state.trace, { type: "critique", content: answer }],
       };
     }
 
-    const structured = model.withStructuredOutput(replanSchema);
-    const revision = await structured.invoke([
-      new SystemMessage(
-        "Revise o plano restante do OpsPilot. Se o pedido já foi atendido, done=true e preencha answer. Caso contrário, done=false e liste os passos restantes (máximo 8).",
-      ),
-      new HumanMessage(
+    const revision = await model.withStructuredOutput(replanSchema).invoke([
+      ["system", REPLANNER_PROMPT],
+      [
+        "user",
         JSON.stringify({
           input: state.input,
-          remainingSteps: state.steps,
-          stepsTaken: state.stepsTaken,
-          recentTrace: state.trace.slice(-6),
+          remainingPlan: state.plan,
+          done: state.done,
+          stepsTaken: state.done.length,
+          maxSteps: MAX_STEPS,
         }),
-      ),
+      ],
     ]);
 
-    const critiqueEvent: TraceEvent = { type: "critique", content: revision.critique };
+    const critique: TraceEvent = { type: "critique", content: revision.critique };
 
-    const remainingSteps = revision.steps ?? [];
-
-    if (revision.done || remainingSteps.length === 0) {
-      const answer = revision.answer?.trim() || revision.critique || "Plano concluído.";
+    if (revision.decision === "encerrar") {
+      const answer =
+        revision.answer?.trim() ||
+        revision.critique ||
+        "Pedido atendido.";
       return {
-        done: true,
-        steps: [],
+        plan: [],
         answer,
         llmCalls: state.llmCalls + 1,
-        trace: [...state.trace, critiqueEvent],
+        trace: [...state.trace, critique],
+      };
+    }
+
+    if (revision.decision === "ajustar") {
+      const steps = (revision.steps ?? [])
+        .filter((step) => step.trim().length > 0)
+        .slice(0, Math.max(0, MAX_STEPS - state.done.length));
+      return {
+        plan: steps,
+        llmCalls: state.llmCalls + 1,
+        trace: [...state.trace, critique],
+      };
+    }
+
+    // seguir: mantém o plano restante, opcionalmente podado
+    const steps =
+      revision.steps && revision.steps.length > 0
+        ? revision.steps
+            .filter((step) => step.trim().length > 0)
+            .slice(0, Math.max(0, MAX_STEPS - state.done.length))
+        : state.plan;
+
+    if (steps.length === 0) {
+      const answer =
+        revision.answer?.trim() ||
+        revision.critique ||
+        "Nada restante no plano.";
+      return {
+        plan: [],
+        answer,
+        llmCalls: state.llmCalls + 1,
+        trace: [...state.trace, critique],
       };
     }
 
     return {
-      done: false,
-      steps: remainingSteps.slice(0, 8),
+      plan: steps,
       llmCalls: state.llmCalls + 1,
-      trace: [...state.trace, critiqueEvent],
+      trace: [...state.trace, critique],
     };
-  };
+  }
 
-  const shouldContinue = (state: PlanStateType): "executor" | typeof END => {
-    if (state.done || state.steps.length === 0) {
+  function shouldContinue(state: PEStateType): "executor" | typeof END {
+    if (state.answer.trim().length > 0) {
       return END;
     }
-    if (state.stepsTaken >= 8 || state.stepsTaken >= state.maxIterations) {
+    if (state.plan.length === 0) {
+      return END;
+    }
+    if (state.done.length >= MAX_STEPS || state.done.length >= state.maxIterations) {
       return END;
     }
     return "executor";
-  };
+  }
 
-  return new StateGraph(PlanState)
+  return new StateGraph(PEState)
     .addNode("planner", planner)
     .addNode("executor", executor)
     .addNode("replanner", replanner)
@@ -234,24 +293,24 @@ export const planAndExecuteStrategy: ReasoningStrategy = {
 
     return runWithMetrics(async () => {
       try {
-        const graph = createPlanGraph();
+        const graph = createPlanExecuteGraph();
         const finalState = await graph.invoke({
           input,
-          steps: [],
-          stepsTaken: 0,
-          maxIterations: options.maxIterations,
+          plan: [],
+          done: [],
           answer: "",
+          maxIterations: options.maxIterations,
           trace: [],
           llmCalls: 0,
-          done: false,
         });
 
         let answer = finalState.answer?.trim() ?? "";
         if (!answer) {
           answer =
-            finalState.stepsTaken >= options.maxIterations || finalState.stepsTaken >= 8
-              ? buildLimitReachedAnswer(Math.min(8, options.maxIterations))
-              : "Plano concluído sem resposta explícita.";
+            finalState.done.length >= MAX_STEPS ||
+            finalState.done.length >= options.maxIterations
+              ? buildLimitReachedAnswer(Math.min(MAX_STEPS, options.maxIterations))
+              : finalState.done.at(-1)?.[1] || "Plano concluído sem resposta explícita.";
         }
 
         return {
