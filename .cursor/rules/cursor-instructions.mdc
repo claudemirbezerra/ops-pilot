@@ -11,7 +11,8 @@ Copiloto de plantão que gerencia alertas e incidentes de produção. APO é um 
 - Node 22 LTS, TypeScript ESM strict
 - Zod na fronteira (HTTP/CLI)
 - Testes: `node:test` via tsx
-- Express com MySQL como banco
+- Express com SQLite via `node:sqlite` (`DatabaseSync`); `OPSPILOT_DB` (default `./data/opspilot.db`); `:memory:` nos testes
+
 
 ## Comandos
 - `npm run dev` — `tsx src/index.ts`

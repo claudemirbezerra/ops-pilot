@@ -1,16 +1,14 @@
 <!--
 Sync Impact Report
-- Version change: unratified template → 1.0.0
-- Modified principles:
-  - [PRINCIPLE_1_NAME] → I. Camadas explícitas
-  - [PRINCIPLE_2_NAME] → II. Funções puras
-  - [PRINCIPLE_3_NAME] → III. Validações na fronteira
-  - [PRINCIPLE_4_NAME] → IV. Erros de domínio
-  - [PRINCIPLE_5_NAME] → V. Teste é parte da tarefa
-- Added principles: VI. Segurança por padrão, VII. Spec antes de código, VIII. Pequeno e reversível
-- Added sections: Stack obrigatória, Fluxo de desenvolvimento
+- Version change: 1.0.0 → 2.0.0 (MAJOR: stack obrigatória redefinida — MySQL/Sequelize → SQLite via node:sqlite)
+- Modified principles: none (títulos e regras I–VIII preservados)
+- Modified sections:
+  - Stack obrigatória — remove MySQL e Sequelize; passa a SQLite via node:sqlite (DatabaseSync), OPSPILOT_DB e :memory: em testes
+- Added sections: none
 - Removed sections: none
-- Follow-up TODOs: none
+- Follow-up TODOs:
+  - Propagar stack para `.cursor/rules/cursor-instructions.mdc` (orientação de runtime citada em Governance)
+  - Specs históricas 001–003 ainda citam MySQL/Sequelize — fora do escopo desta emenda; alinhar na feature de persistência SQLite
 -->
 
 # OpsPilot Constitution
@@ -60,11 +58,14 @@ Cada tarefa DEVE caber em um commit.
 ## Stack obrigatória
 
 Node 22 LTS, TypeScript ESM strict (`"type": "module"`), Zod, `node:test` via
-tsx, Express, Sequelize, MySQL, LangChain/LangGraph (`@langchain/core`,
-`@langchain/langgraph`, `@langchain/openai`) sobre OpenRouter.
+tsx, Express, SQLite via `node:sqlite` (`DatabaseSync`), LangChain/LangGraph
+(`@langchain/core`, `@langchain/langgraph`, `@langchain/openai`) sobre OpenRouter.
 
-APO é o agente LangChain/LangGraph sobre OpenRouter. O banco é MySQL, acessado
-por Sequelize. Express é a borda HTTP.
+APO é o agente LangChain/LangGraph sobre OpenRouter. Persistência operacional
+DEVE usar SQLite (`node:sqlite` / `DatabaseSync`), sem ORM externo
+(Sequelize/MySQL fora da stack). O caminho do arquivo DEVE ser configurável por
+`OPSPILOT_DB` (default `./data/opspilot.db`); testes DEVEM usar `:memory:`.
+Express é a borda HTTP.
 
 ## Fluxo de desenvolvimento
 
@@ -87,12 +88,15 @@ Uma tarefa só termina com `npm run typecheck` e `npm test` verdes.
 Esta constituição substitui práticas conflitantes. Emendas DEVEM atualizar este
 arquivo, incrementar a versão semver e a data de alteração.
 
-- MAJOR: remoção ou redefinição incompatível de princípio.
+- MAJOR: remoção ou redefinição incompatível de princípio ou da stack obrigatória.
 - MINOR: princípio ou seção nova, ou expansão material.
 - PATCH: clarificação, redação ou correção sem mudança de regra.
 
-Reviews DEVEM verificar conformidade com estes princípios. A orientação de
-runtime está em `.cursor/rules/cursor-instructions.mdc`. A cópia curta em
-`specs/constitution.md` DEVE permanecer alinhada a este arquivo.
+Reviews DEVEM verificar conformidade com estes princípios e com a stack
+obrigatória. A orientação de runtime está em
+`.cursor/rules/cursor-instructions.mdc` e DEVE permanecer alinhada a este
+arquivo. Specs históricas que ainda cite MySQL/Sequelize NÃO invalidam esta
+emenda; DEVEM ser alinhadas quando a feature de persistência SQLite for planejada
+ou implementada.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-22 | **Last Amended**: 2026-10-22
+**Version**: 2.0.0 | **Ratified**: 2026-10-22 | **Last Amended**: 2026-10-26
