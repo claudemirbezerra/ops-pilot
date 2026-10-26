@@ -1,11 +1,13 @@
 import { DomainError } from "./domain/errors.js";
-import { OPS_STORE_JSON, seedJsonStore } from "./seed/json-db.js";
+import { createDefaultOpsStore, summarizeOpsStore } from "./agents/store.js";
 
 async function main(): Promise<void> {
   try {
-    const summary = seedJsonStore();
+    const path = process.env.OPSPILOT_DB ?? "./data/opspilot.db";
+    const store = createDefaultOpsStore(path);
+    const summary = summarizeOpsStore(store);
     console.log(
-      `Catálogo carregado em ${OPS_STORE_JSON}: ${summary.services} serviços, ${summary.alerts} alertas (${summary.firing} em disparo, ${summary.resolved} resolvidos).`,
+      `Catálogo carregado em ${path}: ${summary.services} serviços, ${summary.alerts} alertas (${summary.firing} em disparo, ${summary.resolved} resolvidos).`,
     );
   } catch (error: unknown) {
     console.error(safeMessage(error));

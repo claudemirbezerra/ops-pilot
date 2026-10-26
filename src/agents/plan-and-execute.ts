@@ -14,14 +14,14 @@ import {
   type ToolName,
   type TraceEvent,
 } from "./strategy.js";
-import { createStoreHolder, type StoreHolder } from "./store.js";
+import { createDefaultOpsStore, type OpsStore } from "./store.js";
 import { createOpsTools } from "./tools.js";
 import { ensureAnswerEvent } from "./trace.js";
 
 const MAX_STEPS = 8;
 
 const PLANNER_PROMPT = `Você é o planner do OpsPilot.
-Produza passos curtos, ordenados e executáveis com as ferramentas list_alertas, open_incident e resolver_incident.
+Produza passos curtos, ordenados e executáveis com as ferramentas list_alertas, open_incident, resolver_incident, list_incidents e consultar_runbook.
 No máximo ${MAX_STEPS} passos.`;
 
 const EXECUTOR_PROMPT = `Você é o executor do OpsPilot.
@@ -89,18 +89,24 @@ function messageContent(content: unknown): string {
 }
 
 function asToolName(name: string): ToolName {
-  if (name === "list_alertas" || name === "open_incident" || name === "resolver_incident") {
+  if (
+    name === "list_alertas" ||
+    name === "open_incident" ||
+    name === "resolver_incident" ||
+    name === "list_incidents" ||
+    name === "consultar_runbook"
+  ) {
     return name;
   }
   return "list_alertas";
 }
 
 function createPlanExecuteGraph(
-  holder: StoreHolder,
+  store: OpsStore,
   options: { noReplanner?: boolean } = {},
 ) {
   const model = createModel();
-  const { tools } = createOpsTools(holder);
+  const { tools } = createOpsTools(store);
   const toolsByName = new Map<string, (typeof tools)[number]>(
     tools.map((item) => [item.name, item]),
   );
@@ -309,8 +315,8 @@ export const planAndExecuteStrategy: ReasoningStrategy = {
 
     return runWithMetrics(async () => {
       try {
-        const holder = options.storeHolder ?? createStoreHolder();
-        const graph = createPlanExecuteGraph(holder, {
+        const store = options.opsStore ?? createDefaultOpsStore();
+        const graph = createPlanExecuteGraph(store, {
           noReplanner: options.noReplanner,
         });
         const finalState = await graph.invoke(

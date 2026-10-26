@@ -37,15 +37,15 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T005 Create/extend domain types in `src/domain/types.ts`: `ServiceTier` (`critical` \| `high` \| `standard`); `tier` on `ServiceRecord` (required); `createdAt` / `resolvedAt` / `summary` on `IncidentRecord` (`resolvedAt` and `summary` nullable); `RunbookRecord` (`service` PK, `content` required); full `OpsStore` interface (`seed`, `listAlerts`, `listIncidents`, `openIncident`, `resolveIncident(id, summary?)`, `getRunbook`) per `data-model.md` / `contracts/ops-store.md`
-- [ ] T006 [P] Add `RunbookNotFoundError` to `src/domain/errors.ts` per `data-model.md`
-- [ ] T007 Extend Mercadinho seed payload (prefer `src/seed/primary-catalog.json` + loader, or `src/store/seed-mercadinho.ts` + JSON): keep 5 slugs `checkout`/`payments`/`auth`/`api-gateway`/`notifications` with tiers (`critical`/`critical`/`high`/`high`/`standard`); keep 6 alerts (3 firing / 3 resolved); add 3 runbooks (`checkout`, `payments`, `auth`) per research Decisão 3 — quote constraints: `tier` CHECK ∈ critical|high|standard; alert `severity` ∈ critical|high|medium|low; alert `status` ∈ firing|resolved
-- [ ] T008 Implement `src/store/seed-mercadinho.ts`: Zod schemas for tier + runbooks; `loadMercadinhoSeed()` + `seedOpsStore(store: OpsStore)` calling `store.seed(...)` (idempotent caller side) per research Decisão 2/5
-- [ ] T009 Implement `src/store/in-memory-ops-store.ts` as `InMemoryOpsStore implements OpsStore` (runbooks map; `listIncidents` filter open|resolved|all; `getRunbook` throws `RunbookNotFoundError`; `resolveIncident(id, summary?)` sets `resolvedAt`/`summary`; idempotent `seed`) per `contracts/ops-store.md`
-- [ ] T010 Update `src/agents/store.ts` to re-export `OpsStore` types / helpers needed by agents; stop using `json-db` as the default production path (leave delete/cleanup to polish if still referenced)
-- [ ] T011 [P] Add `src/store/in-memory-ops-store.test.ts` smoke: seed ×2 no dup; listAlerts firing=3; getRunbook(`payments`) hit; getRunbook(`notifications`) miss
-- [ ] T012 Update `src/bench.ts` and `src/arena.ts` to construct `InMemoryOpsStore` + `seedOpsStore` (MUST NOT use SQLite file) per research Decisão 7
-- [ ] T013 Run `npm run typecheck` and confirm domain + in-memory + seed compile under `strict: true`
+- [x] T005 Create/extend domain types in `src/domain/types.ts`: `ServiceTier` (`critical` \| `high` \| `standard`); `tier` on `ServiceRecord` (required); `createdAt` / `resolvedAt` / `summary` on `IncidentRecord` (`resolvedAt` and `summary` nullable); `RunbookRecord` (`service` PK, `content` required); full `OpsStore` interface (`seed`, `listAlerts`, `listIncidents`, `openIncident`, `resolveIncident(id, summary?)`, `getRunbook`) per `data-model.md` / `contracts/ops-store.md`
+- [x] T006 [P] Add `RunbookNotFoundError` to `src/domain/errors.ts` per `data-model.md`
+- [x] T007 Extend Mercadinho seed payload (prefer `src/seed/primary-catalog.json` + loader, or `src/store/seed-mercadinho.ts` + JSON): keep 5 slugs `checkout`/`payments`/`auth`/`api-gateway`/`notifications` with tiers (`critical`/`critical`/`high`/`high`/`standard`); keep 6 alerts (3 firing / 3 resolved); add 3 runbooks (`checkout`, `payments`, `auth`) per research Decisão 3 — quote constraints: `tier` CHECK ∈ critical|high|standard; alert `severity` ∈ critical|high|medium|low; alert `status` ∈ firing|resolved
+- [x] T008 Implement `src/store/seed-mercadinho.ts`: Zod schemas for tier + runbooks; `loadMercadinhoSeed()` + `seedOpsStore(store: OpsStore)` calling `store.seed(...)` (idempotent caller side) per research Decisão 2/5
+- [x] T009 Implement `src/store/in-memory-ops-store.ts` as `InMemoryOpsStore implements OpsStore` (runbooks map; `listIncidents` filter open|resolved|all; `getRunbook` throws `RunbookNotFoundError`; `resolveIncident(id, summary?)` sets `resolvedAt`/`summary`; idempotent `seed`) per `contracts/ops-store.md`
+- [x] T010 Update `src/agents/store.ts` to re-export `OpsStore` types / helpers needed by agents; stop using `json-db` as the default production path (leave delete/cleanup to polish if still referenced)
+- [x] T011 [P] Add `src/store/in-memory-ops-store.test.ts` smoke: seed ×2 no dup; listAlerts firing=3; getRunbook(`payments`) hit; getRunbook(`notifications`) miss
+- [x] T012 Update `src/bench.ts` and `src/arena.ts` to construct `InMemoryOpsStore` + `seedOpsStore` (MUST NOT use SQLite file) per research Decisão 7
+- [x] T013 Run `npm run typecheck` and confirm domain + in-memory + seed compile under `strict: true`
 
 **Checkpoint**: Foundation ready — SQLite persistence and new tools can begin
 
@@ -61,18 +61,18 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T014 [P] [US1] Test seed idempotente ×2: 5 services, 6 alerts (3 firing / 3 resolved), 3 runbooks; sem duplicar PKs in `src/store/sqlite-ops-store.test.ts` (SC-002)
-- [ ] T015 [P] [US1] Test `openIncident` → `listIncidents("open")` → `resolveIncident` → `listIncidents("resolved")` with `resolvedAt` / `summary` in `src/store/sqlite-ops-store.test.ts` (SC-003) — constraints: incident `status` ∈ open|resolved; `resolved_at`/`summary` nullable until resolve
-- [ ] T016 [P] [US1] Test `listAlerts` filters (`firing` / `resolved` / `all`) against seeded Mercadinho in `src/store/sqlite-ops-store.test.ts`
+- [x] T014 [P] [US1] Test seed idempotente ×2: 5 services, 6 alerts (3 firing / 3 resolved), 3 runbooks; sem duplicar PKs in `src/store/sqlite-ops-store.test.ts` (SC-002)
+- [x] T015 [P] [US1] Test `openIncident` → `listIncidents("open")` → `resolveIncident` → `listIncidents("resolved")` with `resolvedAt` / `summary` in `src/store/sqlite-ops-store.test.ts` (SC-003) — constraints: incident `status` ∈ open|resolved; `resolved_at`/`summary` nullable until resolve
+- [x] T016 [P] [US1] Test `listAlerts` filters (`firing` / `resolved` / `all`) against seeded Mercadinho in `src/store/sqlite-ops-store.test.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T017 [US1] Implement `SqliteOpsStore` in `src/store/sqlite-ops-store.ts`: open `DatabaseSync`, `mkdirSync` for file parents when path ≠ `:memory:`, idempotent DDL for tables `services`, `alerts`, `incidents`, `runbooks` with CHECKs (`tier` ∈ critical|high|standard; `severity` ∈ critical|high|medium|low; alert `status` ∈ firing|resolved; incident `status` ∈ open|resolved) per `data-model.md`
-- [ ] T018 [US1] Implement prepared statements + methods `seed`, `listAlerts`, `listIncidents`, `openIncident`, `resolveIncident`, `getRunbook` in `src/store/sqlite-ops-store.ts` (no SQL concatenation; `INSERT OR IGNORE` / `ON CONFLICT DO NOTHING` on PKs; numeric incident ids) per `contracts/ops-store.md` / FR-007
-- [ ] T019 [US1] Expose internal `database` (or equivalent `/** @internal */`) on `SqliteOpsStore` for CHECK tests later per research Decisão 10
-- [ ] T020 [US1] Wire production composition: default store for `src/agents/react.ts`, `src/agents/plan-and-execute.ts`, and HTTP bootstrap (`src/index.ts` / chat service) to `SqliteOpsStore(process.env.OPSPILOT_DB ?? "./data/opspilot.db")` + `seedOpsStore(store)` + `createOpsTools(store)` (FR-011)
-- [ ] T021 [US1] Update `src/seed.ts` to seed SQLite via `OPSPILOT_DB` (replace `json-db` seed path)
-- [ ] T022 [US1] Run US1 cases in `src/store/sqlite-ops-store.test.ts` via `npm test` until green
+- [x] T017 [US1] Implement `SqliteOpsStore` in `src/store/sqlite-ops-store.ts`: open `DatabaseSync`, `mkdirSync` for file parents when path ≠ `:memory:`, idempotent DDL for tables `services`, `alerts`, `incidents`, `runbooks` with CHECKs (`tier` ∈ critical|high|standard; `severity` ∈ critical|high|medium|low; alert `status` ∈ firing|resolved; incident `status` ∈ open|resolved) per `data-model.md`
+- [x] T018 [US1] Implement prepared statements + methods `seed`, `listAlerts`, `listIncidents`, `openIncident`, `resolveIncident`, `getRunbook` in `src/store/sqlite-ops-store.ts` (no SQL concatenation; `INSERT OR IGNORE` / `ON CONFLICT DO NOTHING` on PKs; numeric incident ids) per `contracts/ops-store.md` / FR-007
+- [x] T019 [US1] Expose internal `database` (or equivalent `/** @internal */`) on `SqliteOpsStore` for CHECK tests later per research Decisão 10
+- [x] T020 [US1] Wire production composition: default store for `src/agents/react.ts`, `src/agents/plan-and-execute.ts`, and HTTP bootstrap (`src/index.ts` / chat service) to `SqliteOpsStore(process.env.OPSPILOT_DB ?? "./data/opspilot.db")` + `seedOpsStore(store)` + `createOpsTools(store)` (FR-011)
+- [x] T021 [US1] Update `src/seed.ts` to seed SQLite via `OPSPILOT_DB` (replace `json-db` seed path)
+- [x] T022 [US1] Run US1 cases in `src/store/sqlite-ops-store.test.ts` via `npm test` until green
 
 **Checkpoint**: MVP — estado operacional persiste via SQLite; seed Mercadinho disponível
 
@@ -86,17 +86,17 @@
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T023 [P] [US2] Tool test `list_incidents` default `open` + filtros `resolved` / `all` in `src/agents/tools.test.ts` (SC-005)
-- [ ] T024 [P] [US2] Tool test `consultar_runbook` hit (`payments`) and miss (serviço sem runbook → observação descritiva) in `src/agents/tools.test.ts`
-- [ ] T025 [P] [US2] Tool regression: `list_alertas` / `open_incident` / `resolver_incident` still work on `:memory:` SQLite in `src/agents/tools.test.ts` (FR-014)
+- [x] T023 [P] [US2] Tool test `list_incidents` default `open` + filtros `resolved` / `all` in `src/agents/tools.test.ts` (SC-005)
+- [x] T024 [P] [US2] Tool test `consultar_runbook` hit (`payments`) and miss (serviço sem runbook → observação descritiva) in `src/agents/tools.test.ts`
+- [x] T025 [P] [US2] Tool regression: `list_alertas` / `open_incident` / `resolver_incident` still work on `:memory:` SQLite in `src/agents/tools.test.ts` (FR-014)
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Revise `list_alertas`, `open_incident`, `resolver_incident` in `src/agents/tools.ts`: descriptions with quando usar / quando não usar; `.describe()` on every field; enums; optional `summary` on `resolver_incident`; accept `OpsStore` instead of `StoreHolder` per `contracts/tools.md` / FR-010
-- [ ] T027 [P] [US2] Implement `list_incidents` tool in `src/agents/tools.ts` (`status` open|resolved|all, default open) per `contracts/tools.md` / FR-008
-- [ ] T028 [P] [US2] Implement `consultar_runbook` tool in `src/agents/tools.ts` (catch `RunbookNotFoundError` → observação string) per FR-009
-- [ ] T029 [US2] Update `createOpsTools(store: OpsStore)` in `src/agents/tools.ts` to return all 5 tools in order: `list_alertas`, `open_incident`, `resolver_incident`, `list_incidents`, `consultar_runbook`
-- [ ] T030 [US2] Run US2 cases in `src/agents/tools.test.ts` via `npm test` until green
+- [x] T026 [US2] Revise `list_alertas`, `open_incident`, `resolver_incident` in `src/agents/tools.ts`: descriptions with quando usar / quando não usar; `.describe()` on every field; enums; optional `summary` on `resolver_incident`; accept `OpsStore` instead of `StoreHolder` per `contracts/tools.md` / FR-010
+- [x] T027 [P] [US2] Implement `list_incidents` tool in `src/agents/tools.ts` (`status` open|resolved|all, default open) per `contracts/tools.md` / FR-008
+- [x] T028 [P] [US2] Implement `consultar_runbook` tool in `src/agents/tools.ts` (catch `RunbookNotFoundError` → observação string) per FR-009
+- [x] T029 [US2] Update `createOpsTools(store: OpsStore)` in `src/agents/tools.ts` to return all 5 tools in order: `list_alertas`, `open_incident`, `resolver_incident`, `list_incidents`, `consultar_runbook`
+- [x] T030 [US2] Run US2 cases in `src/agents/tools.test.ts` via `npm test` until green
 
 **Checkpoint**: Agente tem listagem de incidentes + runbooks; descrições passam nas 6 regras
 
@@ -110,15 +110,15 @@
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T031 [P] [US3] CHECK rejection tests (invalid `tier` / `severity` / `status`) via internal `database` prepare/run in `src/store/sqlite-ops-store.test.ts` (SC-004 / FR-013)
-- [ ] T032 [P] [US3] Assert `src/bench.ts` still constructs `InMemoryOpsStore` + `seedOpsStore` (grep/smoke in test or comment contract); do not switch bench to SQLite file (SC-006)
+- [x] T031 [P] [US3] CHECK rejection tests (invalid `tier` / `severity` / `status`) via internal `database` prepare/run in `src/store/sqlite-ops-store.test.ts` (SC-004 / FR-013)
+- [x] T032 [P] [US3] Assert `src/bench.ts` still constructs `InMemoryOpsStore` + `seedOpsStore` (grep/smoke in test or comment contract); do not switch bench to SQLite file (SC-006)
 
 ### Implementation for User Story 3
 
-- [ ] T033 [US3] Confirm `src/arena.ts` remains on `InMemoryOpsStore` + seed API per research Decisão 7; fix compile breaks from `OpsStore` migration
-- [ ] T034 [US3] Remove or stop referencing dead MySQL/JSON paths: `src/seed/json-db.ts`, `src/models/*`, `src/db/*`, `src/services/catalog-seed-service.ts` — update any remaining imports/tests
-- [ ] T035 [US3] Migrate remaining `src/agents/store.test.ts` (and other store consumers) to `InMemoryOpsStore` or `SqliteOpsStore(":memory:")` so suite has no `json-db` dependency
-- [ ] T036 [US3] Run full `npm test` and `npm run typecheck` until green (SC-006)
+- [x] T033 [US3] Confirm `src/arena.ts` remains on `InMemoryOpsStore` + seed API per research Decisão 7; fix compile breaks from `OpsStore` migration
+- [x] T034 [US3] Remove or stop referencing dead MySQL/JSON paths: `src/seed/json-db.ts`, `src/models/*`, `src/db/*`, `src/services/catalog-seed-service.ts` — update any remaining imports/tests
+- [x] T035 [US3] Migrate remaining `src/agents/store.test.ts` (and other store consumers) to `InMemoryOpsStore` or `SqliteOpsStore(":memory:")` so suite has no `json-db` dependency
+- [x] T036 [US3] Run full `npm test` and `npm run typecheck` until green (SC-006)
 
 **Checkpoint**: Harness de desenvolvimento completo e reproduzível sem rede
 
@@ -128,9 +128,9 @@
 
 **Purpose**: Validation against quickstart and final hygiene
 
-- [ ] T037 [P] Walk `specs/004-sqlite-ops-store/quickstart.md` automated checklist items and fix gaps
-- [ ] T038 [P] Document/verify file-persistence smoke for SC-001 in `specs/004-sqlite-ops-store/quickstart.md` (same `OPSPILOT_DB` across restart)
-- [ ] T039 Final review: no SQL string concatenation in `src/store/sqlite-ops-store.ts`; `data/` ignored; five tools registered with 6-rule descriptions; no Sequelize/MySQL in `package.json`
+- [x] T037 [P] Walk `specs/004-sqlite-ops-store/quickstart.md` automated checklist items and fix gaps
+- [x] T038 [P] Document/verify file-persistence smoke for SC-001 in `specs/004-sqlite-ops-store/quickstart.md` (same `OPSPILOT_DB` across restart)
+- [x] T039 Final review: no SQL string concatenation in `src/store/sqlite-ops-store.ts`; `data/` ignored; five tools registered with 6-rule descriptions; no Sequelize/MySQL in `package.json`
 
 ---
 

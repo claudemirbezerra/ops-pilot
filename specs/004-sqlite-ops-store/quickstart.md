@@ -81,8 +81,8 @@ npm run bench
 
 ## Done quando
 
-- [ ] `npm test` + `npm run typecheck` verdes
+- [x] `npm test` + `npm run typecheck` verdes
 - [ ] SC-001: reiniciar com o mesmo `OPSPILOT_DB` (manual)
-- [ ] `data/` no `.gitignore`
-- [ ] Descrições das 5 tools passam nas 6 regras (review em `src/agents/tools.ts`)
-- [ ] MySQL/Sequelize fora do `package.json` / composição
+- [x] `data/` no `.gitignore`
+- [x] Descrições das 5 tools passam nas 6 regras (review em `src/agents/tools.ts`)
+- [x] MySQL/Sequelize fora do `package.json` / composição

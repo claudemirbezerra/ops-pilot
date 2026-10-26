@@ -1,44 +1,36 @@
-import {
-  InvalidAlertStatusError,
-  InvalidIncidentInputError,
-  UnknownIncidentError,
-  UnknownServiceError,
-} from "../domain/errors.js";
-import { loadJsonStore, saveJsonStore } from "../seed/json-db.js";
-import { primaryCatalog } from "../seed/primary-catalog.js";
+import type { OpsStore } from "../domain/types.js";
+import { InMemoryOpsStore } from "../store/in-memory-ops-store.js";
+import { seedOpsStore } from "../store/seed-mercadinho.js";
+import { SqliteOpsStore } from "../store/sqlite-ops-store.js";
 
-export type AlertStatus = "firing" | "resolved";
-export type Severity = "low" | "medium" | "high" | "critical";
-export type IncidentStatus = "open" | "resolved";
+export type {
+  AlertRecord,
+  AlertStatus,
+  IncidentRecord,
+  IncidentStatus,
+  OpsStore,
+  RunbookRecord,
+  SeedPayload,
+  ServiceRecord,
+  ServiceTier,
+  Severity,
+} from "../domain/types.js";
 
-export type ServiceRecord = {
-  slug: string;
-  name: string;
-  description: string;
-};
+/** Store de produção: SQLite em arquivo + seed Mercadinho. */
+export function createDefaultOpsStore(
+  path: string = process.env.OPSPILOT_DB ?? "./data/opspilot.db",
+): OpsStore {
+  const store = new SqliteOpsStore(path);
+  seedOpsStore(store);
+  return store;
+}
 
-export type AlertRecord = {
-  serviceSlug: string;
-  title: string;
-  detail: string;
-  status: AlertStatus;
-  severity: Severity;
-};
-
-export type IncidentRecord = {
-  id: number;
-  title: string;
-  serviceSlug: string;
-  severity: Severity;
-  status: IncidentStatus;
-};
-
-export type Store = {
-  services: ServiceRecord[];
-  alerts: AlertRecord[];
-  incidents: IncidentRecord[];
-  nextIncidentId: number;
-};
+/** Store in-memory seedado — bench, arena e testes reproduzíveis. */
+export function createInMemorySeededStore(): InMemoryOpsStore {
+  const store = new InMemoryOpsStore();
+  seedOpsStore(store);
+  return store;
+}
 
 export type CatalogCounts = {
   services: number;
@@ -47,114 +39,14 @@ export type CatalogCounts = {
   resolved: number;
 };
 
-/** Cópia pura do catálogo versionado (sem I/O) — usada nos testes determinísticos. */
-export function createStoreFromPrimaryCatalog(): Store {
+export function summarizeOpsStore(store: OpsStore): CatalogCounts {
+  const alerts = store.listAlerts("all");
+  const serviceSlugs = new Set(alerts.map((alert) => alert.serviceSlug));
+  // Mercadinho seed: 5 services; alerts cover all slugs.
   return {
-    services: primaryCatalog.services.map((service) => ({ ...service })),
-    alerts: primaryCatalog.alerts.map((alert) => ({ ...alert })),
-    incidents: [],
-    nextIncidentId: 1,
+    services: serviceSlugs.size,
+    alerts: alerts.length,
+    firing: alerts.filter((alert) => alert.status === "firing").length,
+    resolved: alerts.filter((alert) => alert.status === "resolved").length,
   };
-}
-
-/** Store ligado ao JSON em `data/ops-store.json`. */
-export function createStoreFromJsonDb(): Store {
-  return loadJsonStore();
-}
-
-export function persistStore(store: Store): void {
-  saveJsonStore(store);
-}
-
-export function summarizeStore(store: Store): CatalogCounts {
-  return {
-    services: store.services.length,
-    alerts: store.alerts.length,
-    firing: store.alerts.filter((alert) => alert.status === "firing").length,
-    resolved: store.alerts.filter((alert) => alert.status === "resolved").length,
-  };
-}
-
-export function listAlerts(store: Store, status: string): AlertRecord[] {
-  if (status !== "firing" && status !== "resolved") {
-    throw new InvalidAlertStatusError(
-      `Situação de alerta inválida: ${status}. Use firing ou resolved.`,
-    );
-  }
-
-  return store.alerts.filter((alert) => alert.status === status).map((alert) => ({ ...alert }));
-}
-
-export function openIncident(
-  store: Store,
-  input: { title: string; service: string; severity: Severity },
-): { store: Store; incident: IncidentRecord } {
-  const title = input.title.trim();
-  if (title.length === 0) {
-    throw new InvalidIncidentInputError("O título do incidente é obrigatório.");
-  }
-
-  const service = store.services.find((item) => item.slug === input.service);
-  if (!service) {
-    throw new UnknownServiceError(`Serviço desconhecido: ${input.service}.`);
-  }
-
-  const incident: IncidentRecord = {
-    id: store.nextIncidentId,
-    title,
-    serviceSlug: service.slug,
-    severity: input.severity,
-    status: "open",
-  };
-
-  return {
-    store: {
-      ...store,
-      incidents: [...store.incidents, incident],
-      nextIncidentId: store.nextIncidentId + 1,
-    },
-    incident,
-  };
-}
-
-export function resolveIncident(
-  store: Store,
-  id: number,
-): { store: Store; incident: IncidentRecord } {
-  if (!Number.isInteger(id) || id < 1) {
-    throw new UnknownIncidentError(`Incidente desconhecido: ${id}.`);
-  }
-
-  const index = store.incidents.findIndex((item) => item.id === id);
-  if (index < 0) {
-    throw new UnknownIncidentError(`Incidente desconhecido: ${id}.`);
-  }
-
-  const current = store.incidents[index]!;
-  const incident: IncidentRecord = { ...current, status: "resolved" };
-  const incidents = store.incidents.slice();
-  incidents[index] = incident;
-
-  return {
-    store: { ...store, incidents },
-    incident,
-  };
-}
-
-export type StoreHolder = {
-  current: Store;
-  persist?: boolean;
-};
-
-export function createStoreHolder(
-  store: Store = createStoreFromJsonDb(),
-  options: { persist?: boolean } = { persist: true },
-): StoreHolder {
-  return { current: store, persist: options.persist ?? true };
-}
-
-export function commitStore(holder: StoreHolder): void {
-  if (holder.persist) {
-    persistStore(holder.current);
-  }
 }

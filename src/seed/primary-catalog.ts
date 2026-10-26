@@ -11,6 +11,7 @@ const serviceSchema = z
     slug: z.string().regex(/^[a-z0-9-]+$/),
     name: z.string().trim().min(1),
     description: z.string().trim().min(1),
+    tier: z.enum(["critical", "high", "standard"]),
   })
   .strict();
 

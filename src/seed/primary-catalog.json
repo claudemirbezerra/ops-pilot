@@ -3,27 +3,32 @@
     {
       "slug": "api-gateway",
       "name": "API Gateway",
-      "description": "Entrada HTTP do produto."
+      "description": "Entrada HTTP do produto.",
+      "tier": "high"
     },
     {
       "slug": "checkout",
       "name": "Checkout",
-      "description": "Fechamento de pedido."
+      "description": "Fechamento de pedido.",
+      "tier": "critical"
     },
     {
       "slug": "payments",
       "name": "Pagamentos",
-      "description": "Autorização e captura."
+      "description": "Autorização e captura.",
+      "tier": "critical"
     },
     {
       "slug": "auth",
       "name": "Autenticação",
-      "description": "Login e sessão."
+      "description": "Login e sessão.",
+      "tier": "high"
     },
     {
       "slug": "notifications",
       "name": "Notificações",
-      "description": "E-mail e push."
+      "description": "E-mail e push.",
+      "tier": "standard"
     }
   ],
   "alerts": [
@@ -70,6 +75,18 @@
       "severity": "critical"
     }
   ],
-  "incidents": [],
-  "nextIncidentId": 1
+  "runbooks": [
+    {
+      "service": "checkout",
+      "content": "1) Verificar taxa 5xx no gateway.\n2) Rollback do último deploy de checkout se erro > 5%.\n3) Abrir incidente critical e avisar o canal #plantao."
+    },
+    {
+      "service": "payments",
+      "content": "1) Checar latência p99 de autorização.\n2) Validar circuito com o adquirente.\n3) Se p99 > 2s por 5 min, abrir incidente high."
+    },
+    {
+      "service": "auth",
+      "content": "1) Inspecionar pico de 401 no login.\n2) Verificar IdP e cache de sessão.\n3) Mitigar rate-limit abusivo e documentar no incidente."
+    }
+  ]
 }

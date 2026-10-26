@@ -17,6 +17,8 @@ export class UnknownIncidentError extends DomainError {}
 
 export class InvalidIncidentInputError extends DomainError {}
 
+export class RunbookNotFoundError extends DomainError {}
+
 export class MissingModelConfigError extends DomainError {}
 
 export class UnknownStrategyError extends DomainError {}

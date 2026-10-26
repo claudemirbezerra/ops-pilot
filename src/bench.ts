@@ -4,12 +4,7 @@ import { z } from "zod";
 
 import { planAndExecuteStrategy } from "./agents/plan-and-execute.js";
 import { reactStrategy } from "./agents/react.js";
-import {
-  createStoreFromPrimaryCatalog,
-  createStoreHolder,
-  listAlerts,
-  type Store,
-} from "./agents/store.js";
+import { createInMemorySeededStore, type OpsStore } from "./agents/store.js";
 import type { ReasoningStrategy, StrategyResult } from "./agents/strategy.js";
 import {
   DomainError,
@@ -30,7 +25,7 @@ export type BenchArgs = z.infer<typeof benchArgsSchema>;
 type BenchScenario = {
   id: ScenarioId;
   prompt: string;
-  check: (store: Store, result: StrategyResult) => boolean;
+  check: (store: OpsStore, result: StrategyResult) => boolean;
 };
 
 /** sev2 → high (SEV-2). */
@@ -58,12 +53,12 @@ const scenarios: Record<ScenarioId, BenchScenario> = {
     id: "C1",
     prompt: "quantos alertas críticos estão disparando?",
     check(store, result) {
-      const criticalFiring = listAlerts(store, "firing").filter(
-        (alert) => alert.severity === "critical",
-      ).length;
+      const criticalFiring = store
+        .listAlerts("firing")
+        .filter((alert) => alert.severity === "critical").length;
       return (
         criticalFiring === 1 &&
-        store.incidents.length === 0 &&
+        store.listIncidents("all").length === 0 &&
         answerMentionsCount(result.answer, 1)
       );
     },
@@ -73,7 +68,7 @@ const scenarios: Record<ScenarioId, BenchScenario> = {
     prompt:
       "abra três incidentes sev2 para checkout, payment e catalog, nessa mesma ordem, e resolva o primeiro.",
     check(store) {
-      const ordered = [...store.incidents].sort((a, b) => a.id - b.id);
+      const ordered = store.listIncidents("all").sort((a, b) => a.id - b.id);
       if (ordered.length < 3) {
         return false;
       }
@@ -117,25 +112,24 @@ const scenarios: Record<ScenarioId, BenchScenario> = {
     prompt:
       "dos alertas disparando, abra um incidente para o mais antigo e diga quantos sobraram.",
     check(store, result) {
-      const firing = listAlerts(store, "firing");
+      const firing = store.listAlerts("firing");
       const oldest = firing[0];
       if (!oldest) {
         return false;
       }
 
-      const openForOldest = store.incidents.filter(
+      const incidents = store.listIncidents("all");
+      const openForOldest = incidents.filter(
         (incident) =>
           incident.serviceSlug === oldest.serviceSlug && incident.status === "open",
       );
-      if (openForOldest.length !== 1 || store.incidents.length !== 1) {
+      if (openForOldest.length !== 1 || incidents.length !== 1) {
         return false;
       }
 
       const remainingWithoutIncident = firing.filter(
         (alert) =>
-          !store.incidents.some(
-            (incident) => incident.serviceSlug === alert.serviceSlug,
-          ),
+          !incidents.some((incident) => incident.serviceSlug === alert.serviceSlug),
       ).length;
 
       return answerMentionsCount(result.answer, remainingWithoutIncident);
@@ -187,7 +181,9 @@ export function parseBenchArgs(argv: string[]): BenchArgs {
 
   for (const id of scenarioList) {
     if (id !== "C1" && id !== "C2" && id !== "C3") {
-      throw new EmptyStrategySelectionError(`Cenário desconhecido: ${id}. Use C1, C2 ou C3.`);
+      throw new EmptyStrategySelectionError(
+        `Cenário desconhecido: ${id}. Use C1, C2 ou C3.`,
+      );
     }
   }
 
@@ -232,7 +228,7 @@ export function formatBenchTable(rows: BenchRow[]): string {
   ]);
 
   const widths = headers.map((header, index) =>
-    Math.max(header.length, ...stringRows.map((cells) => cells[index]!.length)),
+    Math.max(header.length, ...stringRows.map((row) => row[index]!.length)),
   );
 
   const line = (cells: string[]) =>
@@ -255,18 +251,16 @@ export async function runBench(args: BenchArgs): Promise<BenchRow[]> {
         `[bench ${step}/${total}] ${scenarioId} × ${strategy.name}…`,
       );
 
-      const holder = createStoreHolder(createStoreFromPrimaryCatalog(), {
-        persist: false,
-      });
+      const store = createInMemorySeededStore();
 
       const result = await strategy.run(scenario.prompt, {
         maxIterations: args.maxIterations,
-        storeHolder: holder,
+        opsStore: store,
         noReplanner:
           strategy.name === "plan-and-execute" ? args.noReplanner : false,
       });
 
-      const acerto = scenario.check(holder.current, result);
+      const acerto = scenario.check(store, result);
 
       rows.push({
         cenário: scenarioId,
@@ -291,13 +285,12 @@ async function main(): Promise<void> {
     const rows = await runBench(args);
     console.log(formatBenchTable(rows));
   } catch (error: unknown) {
-    if (error instanceof DomainError) {
-      console.error(error.message);
-      process.exitCode = 1;
-      return;
-    }
-
-    const message = error instanceof Error ? error.message : "erro desconhecido";
+    const message =
+      error instanceof DomainError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : "erro desconhecido";
     console.error(message);
     process.exitCode = 1;
   }

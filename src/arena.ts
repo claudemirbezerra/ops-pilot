@@ -8,6 +8,7 @@ import {
   createReflectPlanAndExecuteStrategy,
   createReflectReactStrategy,
 } from "./agents/reflection.js";
+import { createInMemorySeededStore } from "./agents/store.js";
 import type { ReasoningStrategy, StrategyName } from "./agents/strategy.js";
 import { formatTrace } from "./agents/trace.js";
 import {
@@ -137,9 +138,11 @@ export async function runArena(args: ArenaArgs): Promise<string> {
 
   for (const name of args.strategies) {
     const strategy = strategiesByName[name];
+    const opsStore = createInMemorySeededStore();
     const result = await strategy.run(args.input, {
       maxIterations: args.maxIterations,
       maxReflections: args.maxReflections,
+      opsStore,
     });
 
     blocks.push(

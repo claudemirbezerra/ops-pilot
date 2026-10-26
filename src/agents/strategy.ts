@@ -1,6 +1,11 @@
-import type { StoreHolder } from "./store.js";
+import type { OpsStore } from "./store.js";
 
-export type ToolName = "list_alertas" | "open_incident" | "resolver_incident";
+export type ToolName =
+  | "list_alertas"
+  | "open_incident"
+  | "resolver_incident"
+  | "list_incidents"
+  | "consultar_runbook";
 
 export type TraceEvent =
   | { type: "thought"; content: string }
@@ -31,8 +36,8 @@ export type StrategyOptions = {
   maxIterations: number;
   /** Regenerations after reject; default 2 at the arena border. Inteiro ≥ 1. */
   maxReflections?: number;
-  /** Optional in-memory store for tools (bench). Default: JSON DB holder. */
-  storeHolder?: StoreHolder;
+  /** Optional OpsStore for tools (bench/arena inject InMemory). Default: SQLite file. */
+  opsStore?: OpsStore;
   /** Plan-and-Execute only: skip the replanner node. */
   noReplanner?: boolean;
 };

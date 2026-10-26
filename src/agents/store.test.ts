@@ -6,18 +6,12 @@ import {
   UnknownIncidentError,
   UnknownServiceError,
 } from "../domain/errors.js";
-import {
-  createStoreFromPrimaryCatalog,
-  listAlerts,
-  openIncident,
-  resolveIncident,
-  summarizeStore,
-} from "./store.js";
+import { createInMemorySeededStore, summarizeOpsStore } from "./store.js";
 
-test("store do catálogo primário tem 5 serviços e 6 alertas, 3 em disparo e 3 resolvidos", () => {
-  const store = createStoreFromPrimaryCatalog();
-  const first = summarizeStore(store);
-  const second = summarizeStore(createStoreFromPrimaryCatalog());
+test("store in-memory seedado tem 6 alertas, 3 em disparo e 3 resolvidos", () => {
+  const store = createInMemorySeededStore();
+  const first = summarizeOpsStore(store);
+  const second = summarizeOpsStore(createInMemorySeededStore());
 
   assert.deepEqual(first, {
     services: 5,
@@ -27,53 +21,59 @@ test("store do catálogo primário tem 5 serviços e 6 alertas, 3 em disparo e 3
   });
   assert.deepEqual(first, second);
 
-  const checkoutAlerts = store.alerts.filter((alert) => alert.serviceSlug === "checkout");
+  const checkoutAlerts = store
+    .listAlerts("all")
+    .filter((alert) => alert.serviceSlug === "checkout");
   assert.ok(checkoutAlerts.length > 1);
 });
 
 test("listAlerts filtra firing e resolved e recusa situação inválida", () => {
-  const store = createStoreFromPrimaryCatalog();
-  const firing = listAlerts(store, "firing");
-  const resolved = listAlerts(store, "resolved");
+  const store = createInMemorySeededStore();
+  const firing = store.listAlerts("firing");
+  const resolved = store.listAlerts("resolved");
 
   assert.equal(firing.length, 3);
   assert.equal(resolved.length, 3);
   assert.ok(firing.every((alert) => alert.status === "firing"));
   assert.ok(resolved.every((alert) => alert.status === "resolved"));
 
-  assert.throws(() => listAlerts(store, "all"), InvalidAlertStatusError);
-  assert.deepEqual(summarizeStore(store), summarizeStore(createStoreFromPrimaryCatalog()));
+  assert.throws(
+    () => store.listAlerts("bogus" as "firing"),
+    InvalidAlertStatusError,
+  );
 });
 
 test("openIncident e resolveIncident mudam só o incidente alvo", () => {
-  const base = createStoreFromPrimaryCatalog();
-  const opened = openIncident(base, {
+  const store = createInMemorySeededStore();
+  const opened = store.openIncident({
     title: "Checkout instável",
     service: "checkout",
     severity: "critical",
   });
 
-  assert.equal(opened.incident.status, "open");
-  assert.equal(opened.incident.id, 1);
-  assert.equal(opened.store.incidents.length, 1);
+  assert.equal(opened.status, "open");
+  assert.equal(opened.id, 1);
+  assert.equal(store.listIncidents("all").length, 1);
 
-  const resolved = resolveIncident(opened.store, opened.incident.id);
-  assert.equal(resolved.incident.status, "resolved");
-  assert.equal(resolved.store.incidents.length, 1);
+  const resolved = store.resolveIncident(opened.id, "mitigado");
+  assert.equal(resolved.status, "resolved");
+  assert.equal(resolved.summary, "mitigado");
+  assert.ok(resolved.resolvedAt !== null);
+  assert.equal(store.listIncidents("all").length, 1);
 
-  const again = resolveIncident(resolved.store, opened.incident.id);
-  assert.equal(again.incident.status, "resolved");
-  assert.equal(again.store.incidents.length, 1);
+  const again = store.resolveIncident(opened.id);
+  assert.equal(again.status, "resolved");
+  assert.equal(store.listIncidents("all").length, 1);
 });
 
 test("serviço e incidente desconhecidos recusam sem alterar o store", () => {
-  const store = createStoreFromPrimaryCatalog();
-  const snapshot = structuredClone(store);
+  const store = createInMemorySeededStore();
+  const before = store.listIncidents("all").length;
 
   assert.throws(
-    () => openIncident(store, { title: "x", service: "billing", severity: "low" }),
+    () => store.openIncident({ title: "x", service: "billing", severity: "low" }),
     UnknownServiceError,
   );
-  assert.throws(() => resolveIncident(store, 99), UnknownIncidentError);
-  assert.deepEqual(store, snapshot);
+  assert.throws(() => store.resolveIncident(99), UnknownIncidentError);
+  assert.equal(store.listIncidents("all").length, before);
 });
