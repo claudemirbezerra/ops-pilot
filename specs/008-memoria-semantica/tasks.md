@@ -106,7 +106,7 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T023 [US3] Add *forget* cases in `src/memory/memory-store.test.ts`: after *forget*, *recall* omits that fact; second fact same user remains; wrong `userId` for an existing id throws `MemoryNotFoundError` and COUNT unchanged; unknown id throws `MemoryNotFoundError`; blank ids throw `InvalidMemoryInputError`
+- [X] T023 [US3] Add *forget* cases in `src/memory/memory-store.test.ts`: after *forget*, *recall* omits that fact; second fact same user remains; wrong `userId` for an existing id throws `MemoryNotFoundError` and COUNT unchanged; unknown id throws `MemoryNotFoundError`; blank ids throw `InvalidMemoryInputError`
 
 ### Implementation for User Story 3
 

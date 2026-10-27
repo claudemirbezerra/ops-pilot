@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { InvalidMemoryInputError } from "../domain/errors.js";
+import {
+  InvalidMemoryInputError,
+  MemoryNotFoundError,
+} from "../domain/errors.js";
 import type { Embedder } from "../domain/types.js";
 import { EMBEDDING_DIMS } from "./similarity.js";
 import { SqliteMemoryStore } from "./memory-store.js";
@@ -175,4 +178,48 @@ test("recall for user with no facts returns empty list", async () => {
   );
   const recalled = await store.recall("nobody", "q");
   assert.deepEqual(recalled, []);
+});
+
+test("forget removes fact for that user only", async () => {
+  const store = new SqliteMemoryStore(
+    ":memory:",
+    makeFakeEmbedder({
+      keep: unitAt(20),
+      drop: unitAt(21),
+      q: unitAt(20),
+    }),
+  );
+  const kept = await store.remember("u1", "keep");
+  const dropped = await store.remember("u1", "drop");
+  store.forget("u1", dropped.id);
+  const recalled = await store.recall("u1", "q");
+  assert.ok(recalled.every((r) => r.id !== dropped.id));
+  assert.ok(recalled.some((r) => r.id === kept.id));
+});
+
+test("forget with wrong userId does not delete", async () => {
+  const store = new SqliteMemoryStore(
+    ":memory:",
+    makeFakeEmbedder({ fato: unitAt(22) }),
+  );
+  const record = await store.remember("owner", "fato");
+  assert.throws(
+    () => store.forget("other", record.id),
+    MemoryNotFoundError,
+  );
+  assert.equal(countMemories(store), 1);
+});
+
+test("forget unknown id throws MemoryNotFoundError", async () => {
+  const store = new SqliteMemoryStore(":memory:", makeFakeEmbedder({}));
+  assert.throws(
+    () => store.forget("u1", "00000000-0000-0000-0000-000000000000"),
+    MemoryNotFoundError,
+  );
+});
+
+test("forget blank ids throw InvalidMemoryInputError", async () => {
+  const store = new SqliteMemoryStore(":memory:", makeFakeEmbedder({}));
+  assert.throws(() => store.forget("", "id"), InvalidMemoryInputError);
+  assert.throws(() => store.forget("u1", "   "), InvalidMemoryInputError);
 });
