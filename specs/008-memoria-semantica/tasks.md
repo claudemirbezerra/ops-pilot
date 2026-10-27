@@ -80,7 +80,7 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T015 [P] [US2] Write *recall* cases in `src/memory/memory-store.test.ts`: returns at most 3, only `score >= 0.3`, ordered score DESC with stable ties; empty/blank query or userId → `InvalidMemoryInputError`; user with no facts → `[]`
+- [X] T015 [P] [US2] Write *recall* cases in `src/memory/memory-store.test.ts`: returns at most 3, only `score >= 0.3`, ordered score DESC with stable ties; empty/blank query or userId → `InvalidMemoryInputError`; user with no facts → `[]`
 - [ ] T016 [P] [US2] Write pure prompt cases in `src/services/memory-prompt.test.ts`: empty list → `""`; one/two facts → lines under header `Memória do plantonista:` with `- <fact>` bullets
 - [ ] T017 [P] [US2] Add channel cases in `src/http/server.test.ts`: every memory-related `createApp` injects `memoryStore: new SqliteMemoryStore(":memory:", fakeEmbedder)` and `conversationStore: new SqliteConversationStore(":memory:")`; after *remember* via store, POST `{ message, userId }` → 200 and fake `run` input starts with `Memória do plantonista:` and contains the fact, then history (`Plantonista: …`); POST without `userId` → no memory header; `userId` number/`null`/`""`/`"   "` → 400 with `issues`, fake not called; blank message with valid `userId` → empty-input 200, no recall side effects on store counts; `historyMessages` still counts only conversation window (not memory lines)
 

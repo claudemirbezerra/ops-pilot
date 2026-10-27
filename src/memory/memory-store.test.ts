@@ -123,3 +123,56 @@ test("facts for user-a never appear for user-b", async () => {
     ["fato b"],
   );
 });
+
+/** Unit vector with known first-component score vs `unitAt(0)`, orthogonal extras. */
+function scoredAgainstQuery(score: number, orthoIndex: number): Float32Array {
+  const vector = new Float32Array(EMBEDDING_DIMS);
+  vector[0] = score;
+  vector[orthoIndex] = Math.sqrt(Math.max(0, 1 - score * score));
+  return vector;
+}
+
+test("recall returns at most 3 with score >= 0.3 ordered by score", async () => {
+  const store = new SqliteMemoryStore(
+    ":memory:",
+    makeFakeEmbedder({
+      query: unitAt(0),
+      high: unitAt(0),
+      mid: scoredAgainstQuery(0.5, 2),
+      edge: scoredAgainstQuery(0.3, 3),
+      low: scoredAgainstQuery(0.2, 4),
+      fourth: scoredAgainstQuery(0.4, 5),
+    }),
+  );
+  await store.remember("u1", "high");
+  await store.remember("u1", "mid");
+  await store.remember("u1", "edge");
+  await store.remember("u1", "low");
+  await store.remember("u1", "fourth");
+  const recalled = await store.recall("u1", "query");
+  assert.equal(recalled.length, 3);
+  assert.deepEqual(
+    recalled.map((r) => r.fact),
+    ["high", "mid", "fourth"],
+  );
+  assert.ok(recalled.every((r) => r.score >= 0.3));
+});
+
+test("recall rejects blank query or userId", async () => {
+  const store = new SqliteMemoryStore(
+    ":memory:",
+    makeFakeEmbedder({ a: unitAt(1) }),
+  );
+  await store.remember("u1", "a");
+  await assert.rejects(() => store.recall("", "a"), InvalidMemoryInputError);
+  await assert.rejects(() => store.recall("u1", "   "), InvalidMemoryInputError);
+});
+
+test("recall for user with no facts returns empty list", async () => {
+  const store = new SqliteMemoryStore(
+    ":memory:",
+    makeFakeEmbedder({ q: unitAt(0) }),
+  );
+  const recalled = await store.recall("nobody", "q");
+  assert.deepEqual(recalled, []);
+});
