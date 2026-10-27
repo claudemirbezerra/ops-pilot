@@ -125,7 +125,7 @@
 
 ### Implementation for User Story 4
 
-- [ ] T023 [US4] Run `npm test` and `npm run typecheck` until the full suite is green, including store, prompt, channel and `src/store/conversation-scope.test.ts`, with no network and no new `package.json` dependency
+- [X] T023 [US4] Run `npm test` and `npm run typecheck` until the full suite is green, including store, prompt, channel and `src/store/conversation-scope.test.ts`, with no network and no new `package.json` dependency
 
 **Checkpoint**: Regressão do fio contínuo cabe em `:memory:` e não arrasta arena/bench
 
