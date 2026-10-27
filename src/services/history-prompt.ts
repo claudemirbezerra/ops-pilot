@@ -1,14 +1,27 @@
+import type {
+  ConversationMessage,
+  ConversationRole,
+} from "../domain/types.js";
+
 export const HISTORY_LIMIT = 12;
 
+const ROLE_LABEL: Record<ConversationRole, string> = {
+  user: "Plantonista",
+  assistant: "Copiloto",
+};
+
 export function selectHistoryWindow(
-  _prior: readonly { role: string; content: string }[],
-  _currentText: string,
-): { role: string; content: string }[] {
-  throw new Error("not implemented");
+  prior: readonly ConversationMessage[],
+  currentText: string,
+): ConversationMessage[] {
+  const current: ConversationMessage = { role: "user", content: currentText };
+  return [...prior, current].slice(-HISTORY_LIMIT);
 }
 
 export function renderHistoryPrompt(
-  _messages: readonly { role: string; content: string }[],
+  messages: readonly ConversationMessage[],
 ): string {
-  throw new Error("not implemented");
+  return messages
+    .map((message) => `${ROLE_LABEL[message.role]}: ${message.content}`)
+    .join("\n");
 }
