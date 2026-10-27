@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { seedOpsStore } from "../store/seed-mercadinho.js";
 import { SqliteOpsStore } from "../store/sqlite-ops-store.js";
+import { PROVIDER_STATUS_URLS } from "./provider-status.js";
 import { createOpsTools } from "./tools.js";
 
 type AnyTool = {
@@ -10,10 +11,17 @@ type AnyTool = {
   invoke: (input: Record<string, unknown>) => Promise<unknown>;
 };
 
-function toolsOnMemory() {
+function jsonResponse(body: unknown, init: { status?: number } = {}) {
+  return new Response(JSON.stringify(body), {
+    status: init.status ?? 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function toolsOnMemory(fetchImpl?: typeof fetch) {
   const store = new SqliteOpsStore(":memory:");
   seedOpsStore(store);
-  const created = createOpsTools(store);
+  const created = createOpsTools(store, fetchImpl ? { fetchImpl } : {});
   return { store, tools: created.tools as unknown as AnyTool[] };
 }
 
@@ -90,7 +98,7 @@ test("list_alertas / open_incident / resolver_incident em :memory:", async () =>
   assert.equal(resolved.summary, "ok");
 });
 
-test("createOpsTools registra 5 tools", () => {
+test("createOpsTools registra 6 tools", () => {
   const { tools } = toolsOnMemory();
   assert.deepEqual(
     tools.map((tool) => tool.name),
@@ -100,6 +108,30 @@ test("createOpsTools registra 5 tools", () => {
       "resolver_incident",
       "list_incidents",
       "consultar_runbook",
+      "check_provider_status",
     ],
   );
+});
+
+test("check_provider_status sucesso default github via fetchImpl", async () => {
+  const urls: string[] = [];
+  const fake: typeof fetch = async (input) => {
+    urls.push(String(input));
+    return jsonResponse({
+      status: { indicator: "none", description: "All Systems Operational" },
+    });
+  };
+  const { tools } = toolsOnMemory(fake);
+  const check = findTool(tools, "check_provider_status");
+  const result = String(await check.invoke({}));
+  assert.equal(result, "none — All Systems Operational");
+  assert.deepEqual(urls, [PROVIDER_STATUS_URLS.github]);
+});
+
+test("check_provider_status erro legível sem rejeitar (body inválido)", async () => {
+  const fake: typeof fetch = async () => jsonResponse({});
+  const { tools } = toolsOnMemory(fake);
+  const check = findTool(tools, "check_provider_status");
+  const result = String(await check.invoke({ provider: "github" }));
+  assert.match(result, /resposta inválida/i);
 });

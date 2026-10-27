@@ -3,7 +3,16 @@ import { z } from "zod";
 
 import { DomainError } from "../domain/errors.js";
 import type { OpsStore, Severity } from "../domain/types.js";
+import {
+  fetchProviderStatus,
+  type FetchImpl,
+  type ProviderId,
+} from "./provider-status.js";
 import { createDefaultOpsStore } from "./store.js";
+
+export type CreateOpsToolsDeps = {
+  fetchImpl?: FetchImpl;
+};
 
 function asObservation(error: unknown): string {
   if (error instanceof DomainError) {
@@ -13,7 +22,11 @@ function asObservation(error: unknown): string {
   return error instanceof Error ? error.message : "Erro desconhecido na ferramenta.";
 }
 
-export function createOpsTools(store: OpsStore = createDefaultOpsStore()) {
+export function createOpsTools(
+  store: OpsStore = createDefaultOpsStore(),
+  deps: CreateOpsToolsDeps = {},
+) {
+  const doFetch = deps.fetchImpl ?? globalThis.fetch;
   const list_alertas = tool(
     async ({ status }) => {
       try {
@@ -134,6 +147,29 @@ export function createOpsTools(store: OpsStore = createDefaultOpsStore()) {
     },
   );
 
+  const check_provider_status = tool(
+    async ({ provider }) => {
+      try {
+        return await fetchProviderStatus(provider as ProviderId, doFetch);
+      } catch (error: unknown) {
+        return asObservation(error);
+      }
+    },
+    {
+      name: "check_provider_status",
+      description:
+        "Consulta a status page pública de um provedor externo (GitHub ou Cloudflare), sem API key. Use quando houver suspeita de problema externo, dúvida \"é o nosso ou do provedor?\", ou dependência fora do ar. Não use para alertas/incidentes internos do Mercadinho (list_alertas / list_incidents) nem para runbook.",
+      schema: z.object({
+        provider: z
+          .enum(["github", "cloudflare"])
+          .default("github")
+          .describe(
+            'Provedor cuja status page pública será consultada: "github" (default) ou "cloudflare".',
+          ),
+      }),
+    },
+  );
+
   return {
     store,
     tools: [
@@ -142,6 +178,7 @@ export function createOpsTools(store: OpsStore = createDefaultOpsStore()) {
       resolver_incident,
       list_incidents,
       consultar_runbook,
+      check_provider_status,
     ],
   };
 }

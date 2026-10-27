@@ -6,7 +6,14 @@ import {
 
 import type { ToolName, TraceEvent } from "./strategy.js";
 
-const TOOL_NAMES = new Set<ToolName>(["list_alertas", "open_incident", "resolver_incident"]);
+const TOOL_NAMES = new Set<ToolName>([
+  "list_alertas",
+  "open_incident",
+  "resolver_incident",
+  "list_incidents",
+  "consultar_runbook",
+  "check_provider_status",
+]);
 
 function messageText(content: unknown): string {
   if (typeof content === "string") {

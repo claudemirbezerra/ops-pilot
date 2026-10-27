@@ -21,7 +21,7 @@ import { ensureAnswerEvent } from "./trace.js";
 const MAX_STEPS = 8;
 
 const PLANNER_PROMPT = `Você é o planner do OpsPilot.
-Produza passos curtos, ordenados e executáveis com as ferramentas list_alertas, open_incident, resolver_incident, list_incidents e consultar_runbook.
+Produza passos curtos, ordenados e executáveis com as ferramentas list_alertas, open_incident, resolver_incident, list_incidents, consultar_runbook e check_provider_status.
 No máximo ${MAX_STEPS} passos.`;
 
 const EXECUTOR_PROMPT = `Você é o executor do OpsPilot.
@@ -94,7 +94,8 @@ function asToolName(name: string): ToolName {
     name === "open_incident" ||
     name === "resolver_incident" ||
     name === "list_incidents" ||
-    name === "consultar_runbook"
+    name === "consultar_runbook" ||
+    name === "check_provider_status"
   ) {
     return name;
   }

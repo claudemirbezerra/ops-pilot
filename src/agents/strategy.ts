@@ -5,7 +5,8 @@ export type ToolName =
   | "open_incident"
   | "resolver_incident"
   | "list_incidents"
-  | "consultar_runbook";
+  | "consultar_runbook"
+  | "check_provider_status";
 
 export type TraceEvent =
   | { type: "thought"; content: string }
