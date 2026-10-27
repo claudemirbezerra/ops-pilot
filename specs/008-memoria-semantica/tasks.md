@@ -110,7 +110,7 @@
 
 ### Implementation for User Story 3
 
-- [ ] T024 [US3] Implement `forget(userId, memoryId)` in `src/memory/memory-store.ts`: validate trim-nonempty; `DELETE … WHERE id = ? AND user_id = ?`; `changes === 0` → `MemoryNotFoundError`; else void
+- [X] T024 [US3] Implement `forget(userId, memoryId)` in `src/memory/memory-store.ts`: validate trim-nonempty; `DELETE … WHERE id = ? AND user_id = ?`; `changes === 0` → `MemoryNotFoundError`; else void
 - [ ] T025 [US3] Run `npm test -- src/memory/memory-store.test.ts` until US3 cases are green
 
 **Checkpoint**: Esquecer é previsível e isolado por usuário
