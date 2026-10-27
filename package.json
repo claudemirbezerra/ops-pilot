@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "node --env-file=.env --import tsx src/index.ts",
     "arena": "tsx src/arena.ts",
     "bench": "tsx src/bench.ts",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
