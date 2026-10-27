@@ -26,7 +26,7 @@
 
 - [X] T001 [P] Create `src/store/sqlite-conversation-store.ts` exporting `class SqliteConversationStore` with `constructor(path?: string)` defaulting to `process.env.OPSPILOT_DB ?? "./data/opspilot.db"` (methods may throw `Error("not implemented")`)
 - [X] T002 [P] Create `src/services/history-prompt.ts` exporting `HISTORY_LIMIT = 12` and stub `selectHistoryWindow` / `renderHistoryPrompt` (may throw `Error("not implemented")`)
-- [ ] T003 [P] Create `src/store/sqlite-conversation-store.test.ts` and `src/services/history-prompt.test.ts` importing `node:test` and `node:assert/strict`, with no cases yet
+- [X] T003 [P] Create `src/store/sqlite-conversation-store.test.ts` and `src/services/history-prompt.test.ts` importing `node:test` and `node:assert/strict`, with no cases yet
 
 ---
 
