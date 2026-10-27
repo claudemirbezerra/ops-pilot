@@ -11,7 +11,9 @@ import {
   type ChannelRegistry,
 } from "../agents/index.js";
 import type { Critic } from "../agents/critic.js";
+import type { ConversationStore } from "../domain/types.js";
 import { runChat } from "../services/chat-service.js";
+import { SqliteConversationStore } from "../store/sqlite-conversation-store.js";
 import {
   ChatTimeoutError,
   UnknownStrategyError,
@@ -23,18 +25,22 @@ const chatBodySchema = z.object({
   message: z.string(),
   strategy: z.string().optional(),
   reflect: z.boolean().optional(),
+  conversationId: z.string().trim().min(1).optional(),
 });
 
 export type CreateAppOptions = {
   registry?: ChannelRegistry;
   critic?: Critic;
   timeoutMs?: number;
+  conversationStore?: ConversationStore;
 };
 
 export function createApp(options: CreateAppOptions = {}): Express {
   const registry = options.registry ?? channelStrategies;
   const critic = options.critic;
   const timeoutMs = options.timeoutMs ?? DEFAULT_CHAT_TIMEOUT_MS;
+  const conversationStore =
+    options.conversationStore ?? new SqliteConversationStore();
 
   const app = express();
   app.use(express.json());
@@ -76,11 +82,16 @@ export function createApp(options: CreateAppOptions = {}): Express {
         registry,
         critic,
         timeoutMs,
+        conversationId: parsed.data.conversationId,
+        conversationStore,
       });
       res.status(200).json({
         answer: result.answer,
         trace: result.trace,
         metrics: result.metrics,
+        ...(result.conversationId !== undefined
+          ? { conversationId: result.conversationId }
+          : {}),
       });
     } catch (error: unknown) {
       if (error instanceof UnknownStrategyError) {
