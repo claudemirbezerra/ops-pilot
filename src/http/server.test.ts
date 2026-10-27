@@ -417,3 +417,116 @@ test("invalid conversationId is 400 and does not call the fake", async () => {
     });
   }
 });
+
+function historyMessagesOf(json: Record<string, unknown>): unknown {
+  const metrics = json.metrics as { historyMessages?: unknown } | undefined;
+  return metrics?.historyMessages;
+}
+
+test("first turn reports one history message and the labeled prompt", async () => {
+  const calls: CallLog[] = [];
+  const store = new SqliteConversationStore(":memory:");
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: store,
+    }),
+  );
+
+  try {
+    const first = await postJson(started.baseUrl, { message: "um" });
+    assert.equal(first.status, 200);
+    assert.equal(historyMessagesOf(first.json), 1);
+    assert.equal(calls[0]?.message, "Plantonista: um");
+    const metrics = first.json.metrics as { llmCalls: number; latencyMs: number };
+    assert.equal(typeof metrics.llmCalls, "number");
+    assert.equal(typeof metrics.latencyMs, "number");
+
+    const second = await postJson(started.baseUrl, {
+      message: "dois",
+      conversationId: first.json.conversationId,
+    });
+    assert.equal(historyMessagesOf(second.json), 3);
+    assert.match(String(calls[1]?.message), /Plantonista: um/);
+    assert.match(String(calls[1]?.message), /Copiloto: react:Plantonista: um/);
+    assert.match(String(calls[1]?.message), /Plantonista: dois$/);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      started.server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+});
+
+test("prompt keeps only the 12 newest messages", async () => {
+  const calls: CallLog[] = [];
+  const store = new SqliteConversationStore(":memory:");
+  const id = store.create();
+  for (let index = 0; index < 12; index += 1) {
+    store.append(id, {
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: `m${index}`,
+    });
+  }
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: store,
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "novo",
+      conversationId: id,
+    });
+    assert.equal(result.status, 200);
+    assert.equal(historyMessagesOf(result.json), 12);
+    const lines = String(calls[0]?.message).split("\n");
+    assert.equal(lines.length, 12);
+    assert.equal(lines[0], "Copiloto: m1");
+    assert.equal(lines.at(-1), "Plantonista: novo");
+    assert.equal(String(calls[0]?.message).includes("m0"), false);
+    assert.equal(
+      store.lastMessages(id, 30).some((message) => message.content === "m0"),
+      true,
+    );
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      started.server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+});
+
+test("reflection counts historyMessages once", async () => {
+  const localCritic = { count: 0 };
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", []),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      critic: approvingCritic(localCritic),
+      conversationStore: new SqliteConversationStore(":memory:"),
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "nova",
+      reflect: true,
+    });
+    assert.equal(result.status, 200);
+    assert.equal(historyMessagesOf(result.json), 1);
+    assert.equal(localCritic.count, 1);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      started.server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+});
