@@ -36,7 +36,7 @@ npm run typecheck
 | 6 | store | *recall* top-3 / min 0,3 | só elegíveis, ≤ 3 |
 | 7 | store | *forget* | some; id alheio → `MemoryNotFoundError` |
 | 8 | store | fato/user em branco | `InvalidMemoryInputError` |
-| 9 | embeddings | ensaio SC-003 | fato “cluster de pagamentos é o azul” vs “qual cor do ambiente de payments?” → no top, score ≥ 0,3, **sem palavra em comum** |
+| 9 | embeddings | ensaio SC-003 | fato “o datacenter financeiro tem tinta azul” vs “qual cor do ambiente de payments?” → no top, score ≥ 0,3, **sem palavra em comum** (par ajustado ao limiar do MiniLM) |
 | 10 | `POST /chat` | com `userId` e fato prévio | substituto recebe bloco `Memória do plantonista:` + histórico |
 | 11 | `POST /chat` | sem `userId` | prompt só histórico; regressão 007 |
 | 12 | `POST /chat` | `userId` vazio / número | 400 |
