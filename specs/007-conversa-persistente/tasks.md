@@ -135,7 +135,7 @@
 
 **Purpose**: Smoke do quickstart e higiene do que ficou de fora
 
-- [ ] T024 Run quickstart `specs/007-conversa-persistente/quickstart.md` §2 manually: `POST /chat` without `conversationId`, restart the process on the same `OPSPILOT_DB` (or default `./data/opspilot.db`), POST again with that id, expect the same id and `historyMessages` 3; an invented id returns 404. Do not load `.env` from application code
+- [X] T024 Run quickstart `specs/007-conversa-persistente/quickstart.md` §2 manually: `POST /chat` without `conversationId`, restart the process on the same `OPSPILOT_DB` (or default `./data/opspilot.db`), POST again with that id, expect the same id and `historyMessages` 3; an invented id returns 404. Do not load `.env` from application code
 - [ ] T025 [P] Confirm `package.json` has no new dependency and that `src/mcp/` was not modified for this feature
 
 ---
