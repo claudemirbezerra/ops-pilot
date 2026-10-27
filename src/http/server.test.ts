@@ -9,6 +9,7 @@ import type {
   StrategyResult,
 } from "../agents/strategy.js";
 import { ChatTimeoutError } from "../domain/errors.js";
+import { SqliteConversationStore } from "../store/sqlite-conversation-store.js";
 import { createApp } from "./server.js";
 
 type CallLog = {
@@ -88,6 +89,7 @@ const criticCalls = { count: 0 };
 const reactFake = makeFake("react", reactCalls);
 const planFake = makeFake("plan-and-execute", planCalls);
 const critic = approvingCritic(criticCalls);
+const sharedStore = new SqliteConversationStore(":memory:");
 
 let baseUrl = "";
 let server: Server;
@@ -101,6 +103,7 @@ before(async () => {
       },
       critic,
       timeoutMs: 180_000,
+      conversationStore: sharedStore,
     }),
   );
   baseUrl = started.baseUrl;
@@ -293,6 +296,7 @@ test("short timeout with never-settling fake returns 504", async () => {
       },
       critic,
       timeoutMs: 30,
+      conversationStore: new SqliteConversationStore(":memory:"),
     }),
   );
 
@@ -326,6 +330,7 @@ test("fast fake still returns 200 under short timeout", async () => {
       },
       critic,
       timeoutMs: 30,
+      conversationStore: new SqliteConversationStore(":memory:"),
     }),
   );
 
@@ -333,6 +338,79 @@ test("fast fake still returns 200 under short timeout", async () => {
     const result = await postJson(started.baseUrl, { message: "rapido" });
     assert.equal(result.status, 200);
     assert.equal(result.json.answer, "react:rapido");
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      started.server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+});
+
+test("new conversation returns an id and the fake still sees the raw message", async () => {
+  const calls: CallLog[] = [];
+  const store = new SqliteConversationStore(":memory:");
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: store,
+    }),
+  );
+
+  try {
+    const first = await postJson(started.baseUrl, { message: "primeiro" });
+    const second = await postJson(started.baseUrl, {
+      message: "segundo",
+      conversationId: first.json.conversationId,
+    });
+    const other = await postJson(started.baseUrl, { message: "outro fio" });
+
+    assert.equal(first.status, 200);
+    assert.equal(typeof first.json.conversationId, "string");
+    assert.ok(String(first.json.conversationId).length > 0);
+    assert.equal(calls[0]?.message, "primeiro");
+    assert.equal(second.status, 200);
+    assert.equal(second.json.conversationId, first.json.conversationId);
+    assert.notEqual(other.json.conversationId, first.json.conversationId);
+
+    const id = String(first.json.conversationId);
+    assert.deepEqual(store.lastMessages(id, 12), [
+      { role: "user", content: "primeiro" },
+      { role: "assistant", content: first.json.answer },
+      { role: "user", content: "segundo" },
+      { role: "assistant", content: second.json.answer },
+    ]);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      started.server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+});
+
+test("invalid conversationId is 400 and does not call the fake", async () => {
+  const calls: CallLog[] = [];
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+    }),
+  );
+
+  try {
+    for (const conversationId of [1, null, "", "   "]) {
+      const result = await postJson(started.baseUrl, {
+        message: "oi",
+        conversationId,
+      });
+      assert.equal(result.status, 400);
+      const issues = result.json.issues as Array<{ path: unknown[] }>;
+      assert.ok(issues.some((issue) => issue.path.includes("conversationId")));
+    }
+    assert.equal(calls.length, 0);
   } finally {
     await new Promise<void>((resolve, reject) => {
       started.server.close((error) => (error ? reject(error) : resolve()));
