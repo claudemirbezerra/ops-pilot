@@ -121,7 +121,7 @@
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T022 [P] [US4] Add `src/store/conversation-scope.test.ts` that reads `src/arena.ts`, `src/bench.ts`, `src/agents/react.ts` and `src/agents/plan-and-execute.ts` and asserts none contain `SqliteConversationStore`, `ConversationStore`, `history-prompt` or `HISTORY_LIMIT` (FR-019). Do not weaken `src/store/bench-uses-in-memory.test.ts`
+- [X] T022 [P] [US4] Add `src/store/conversation-scope.test.ts` that reads `src/arena.ts`, `src/bench.ts`, `src/agents/react.ts` and `src/agents/plan-and-execute.ts` and asserts none contain `SqliteConversationStore`, `ConversationStore`, `history-prompt` or `HISTORY_LIMIT` (FR-019). Do not weaken `src/store/bench-uses-in-memory.test.ts`
 
 ### Implementation for User Story 4
 
