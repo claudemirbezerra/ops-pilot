@@ -11,6 +11,7 @@ import {
   type ChannelRegistry,
 } from "../agents/index.js";
 import type { Critic } from "../agents/critic.js";
+import type { LearningExtractor } from "../agents/learning-extractor.js";
 import type { ConversationStore, MemoryStore } from "../domain/types.js";
 import { runChat } from "../services/chat-service.js";
 import { SqliteConversationStore } from "../store/sqlite-conversation-store.js";
@@ -38,6 +39,7 @@ export type CreateAppOptions = {
   timeoutMs?: number;
   conversationStore?: ConversationStore;
   memoryStore?: MemoryStore;
+  learningExtractor?: LearningExtractor;
 };
 
 export function createApp(options: CreateAppOptions = {}): Express {
@@ -47,6 +49,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   const conversationStore =
     options.conversationStore ?? new SqliteConversationStore();
   const memoryStore = options.memoryStore ?? new SqliteMemoryStore();
+  const learningExtractor = options.learningExtractor;
 
   const app = express();
   app.use(express.json());
@@ -92,6 +95,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
         conversationStore,
         userId: parsed.data.userId,
         memoryStore,
+        learningExtractor,
       });
       res.status(200).json({
         answer: result.answer,

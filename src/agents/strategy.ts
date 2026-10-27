@@ -1,3 +1,4 @@
+import type { MemoryStore } from "../domain/types.js";
 import type { OpsStore } from "./store.js";
 
 export type ToolName =
@@ -6,7 +7,8 @@ export type ToolName =
   | "resolver_incident"
   | "list_incidents"
   | "consultar_runbook"
-  | "check_provider_status";
+  | "check_provider_status"
+  | "forget_preference";
 
 export type TraceEvent =
   | { type: "thought"; content: string }
@@ -39,6 +41,10 @@ export type StrategyOptions = {
   maxReflections?: number;
   /** Optional OpsStore for tools (bench/arena inject InMemory). Default: SQLite file. */
   opsStore?: OpsStore;
+  /** Optional plantonista id for memory tools (forget_preference). */
+  userId?: string;
+  /** Optional MemoryStore for memory tools. */
+  memoryStore?: MemoryStore;
   /** Plan-and-Execute only: skip the replanner node. */
   noReplanner?: boolean;
 };

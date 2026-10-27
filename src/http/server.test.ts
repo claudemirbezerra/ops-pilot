@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import { after, before, test } from "node:test";
 
 import type { Critic } from "../agents/critic.js";
+import type { LearningExtractor } from "../agents/learning-extractor.js";
 import {
   EMPTY_INPUT_ANSWER,
   type ReasoningStrategy,
@@ -15,6 +16,17 @@ import { SqliteMemoryStore } from "../memory/memory-store.js";
 import { EMBEDDING_DIMS } from "../memory/similarity.js";
 import { SqliteConversationStore } from "../store/sqlite-conversation-store.js";
 import { createApp } from "./server.js";
+
+const silentLearning: LearningExtractor = {
+  async extract() {
+    return { hasLearning: false, fact: "" };
+  },
+};
+
+async function flushLearning(): Promise<void> {
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+}
 
 function unitAt(index: number): Float32Array {
   const vector = new Float32Array(EMBEDDING_DIMS);
@@ -127,6 +139,7 @@ before(async () => {
       timeoutMs: 180_000,
       conversationStore: sharedStore,
       memoryStore: sharedMemory,
+      learningExtractor: silentLearning,
     }),
   );
   baseUrl = started.baseUrl;
@@ -727,6 +740,7 @@ test("POST /chat with userId injects recalled memory into the prompt", async () 
       },
       conversationStore: new SqliteConversationStore(":memory:"),
       memoryStore: memory,
+      learningExtractor: silentLearning,
     }),
   );
 
@@ -761,6 +775,7 @@ test("POST /chat without userId keeps history-only prompt", async () => {
       },
       conversationStore: new SqliteConversationStore(":memory:"),
       memoryStore: memory,
+      learningExtractor: silentLearning,
     }),
   );
 
@@ -784,6 +799,7 @@ test("invalid userId is 400 and does not call the fake", async () => {
       },
       conversationStore: new SqliteConversationStore(":memory:"),
       memoryStore: fakeMemoryStore(),
+      learningExtractor: silentLearning,
     }),
   );
 
@@ -805,6 +821,7 @@ test("invalid userId is 400 and does not call the fake", async () => {
 
 test("blank message with userId skips recall side effects", async () => {
   const calls: CallLog[] = [];
+  const extractCalls: string[] = [];
   const memory = fakeMemoryStore({ fato: unitAt(2) });
   await memory.remember("u1", "fato");
   const before = memory.database
@@ -818,6 +835,12 @@ test("blank message with userId skips recall side effects", async () => {
       },
       conversationStore: new SqliteConversationStore(":memory:"),
       memoryStore: memory,
+      learningExtractor: {
+        async extract(message) {
+          extractCalls.push(message);
+          return { hasLearning: false, fact: "" };
+        },
+      },
     }),
   );
 
@@ -829,11 +852,114 @@ test("blank message with userId skips recall side effects", async () => {
     assert.equal(result.status, 200);
     assert.equal(historyMessagesOf(result.json), 0);
     assert.equal(calls.length, 0);
+    assert.equal(extractCalls.length, 0);
     const after = memory.database
       .prepare(`SELECT COUNT(*) AS c FROM memories`)
       .get() as { c: number };
     assert.equal(after.c, before.c);
   } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("POST /chat with userId and durable stub remembers after response", async () => {
+  const calls: CallLog[] = [];
+  const fact = "Prefiro o cluster azul";
+  const memory = fakeMemoryStore({
+    [fact]: unitAt(3),
+    "prefiro o cluster azul para pagamentos": unitAt(3),
+  });
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: memory,
+      learningExtractor: {
+        async extract() {
+          return { hasLearning: true, fact };
+        },
+      },
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "prefiro o cluster azul para pagamentos",
+      userId: "learner-1",
+    });
+    assert.equal(result.status, 200);
+    await flushLearning();
+    const recalled = await memory.recall("learner-1", fact);
+    assert.ok(recalled.some((item) => item.fact === fact));
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("POST /chat without userId does not call learning extractor", async () => {
+  const extractCalls: string[] = [];
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", []),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
+      learningExtractor: {
+        async extract(message) {
+          extractCalls.push(message);
+          return { hasLearning: true, fact: "não deveria" };
+        },
+      },
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, { message: "listar alertas" });
+    assert.equal(result.status, 200);
+    await flushLearning();
+    assert.equal(extractCalls.length, 0);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("learning remember rejection still returns 200", async () => {
+  const memory = fakeMemoryStore();
+  const originalRemember = memory.remember.bind(memory);
+  memory.remember = async () => {
+    throw new Error("async remember failed");
+  };
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", []),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: memory,
+      learningExtractor: {
+        async extract() {
+          return { hasLearning: true, fact: "algo durável" };
+        },
+      },
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "lembre que prefiro azul",
+      userId: "u-fail",
+    });
+    assert.equal(result.status, 200);
+    assert.ok(typeof result.json.answer === "string");
+    await flushLearning();
+  } finally {
+    memory.remember = originalRemember;
     await closeServer(started.server);
   }
 });

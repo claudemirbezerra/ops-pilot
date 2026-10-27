@@ -29,7 +29,10 @@ export const reactStrategy: ReasoningStrategy = {
     return runWithMetrics(async () => {
       const { model, getLlmCalls } = createCountingModel(options.maxIterations);
       const store = options.opsStore ?? createDefaultOpsStore();
-      const { tools } = createOpsTools(store);
+      const { tools } = createOpsTools(store, {
+        userId: options.userId,
+        memoryStore: options.memoryStore,
+      });
 
       try {
         const agent = createReactAgent({

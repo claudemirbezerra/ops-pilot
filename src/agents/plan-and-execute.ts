@@ -2,6 +2,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import { z } from "zod";
 
+import type { MemoryStore } from "../domain/types.js";
 import { createModel } from "./model.js";
 import {
   MODEL_UNAVAILABLE_ANSWER,
@@ -21,7 +22,7 @@ import { ensureAnswerEvent } from "./trace.js";
 const MAX_STEPS = 8;
 
 const PLANNER_PROMPT = `Você é o planner do OpsPilot.
-Produza passos curtos, ordenados e executáveis com as ferramentas list_alertas, open_incident, resolver_incident, list_incidents, consultar_runbook e check_provider_status.
+Produza passos curtos, ordenados e executáveis com as ferramentas list_alertas, open_incident, resolver_incident, list_incidents, consultar_runbook, check_provider_status e forget_preference.
 No máximo ${MAX_STEPS} passos.`;
 
 const EXECUTOR_PROMPT = `Você é o executor do OpsPilot.
@@ -95,7 +96,8 @@ function asToolName(name: string): ToolName {
     name === "resolver_incident" ||
     name === "list_incidents" ||
     name === "consultar_runbook" ||
-    name === "check_provider_status"
+    name === "check_provider_status" ||
+    name === "forget_preference"
   ) {
     return name;
   }
@@ -104,10 +106,17 @@ function asToolName(name: string): ToolName {
 
 function createPlanExecuteGraph(
   store: OpsStore,
-  options: { noReplanner?: boolean } = {},
+  options: {
+    noReplanner?: boolean;
+    userId?: string;
+    memoryStore?: MemoryStore;
+  } = {},
 ) {
   const model = createModel();
-  const { tools } = createOpsTools(store);
+  const { tools } = createOpsTools(store, {
+    userId: options.userId,
+    memoryStore: options.memoryStore,
+  });
   const toolsByName = new Map<string, (typeof tools)[number]>(
     tools.map((item) => [item.name, item]),
   );
@@ -319,6 +328,8 @@ export const planAndExecuteStrategy: ReasoningStrategy = {
         const store = options.opsStore ?? createDefaultOpsStore();
         const graph = createPlanExecuteGraph(store, {
           noReplanner: options.noReplanner,
+          userId: options.userId,
+          memoryStore: options.memoryStore,
         });
         const finalState = await graph.invoke(
           {

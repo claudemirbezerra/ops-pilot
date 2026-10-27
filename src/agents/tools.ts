@@ -1,8 +1,11 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
-import { DomainError } from "../domain/errors.js";
-import type { OpsStore, Severity } from "../domain/types.js";
+import {
+  DomainError,
+  UserIdRequiredError,
+} from "../domain/errors.js";
+import type { MemoryStore, OpsStore, Severity } from "../domain/types.js";
 import {
   LIST_ALERTS_DESCRIPTION,
   OPEN_INCIDENT_DESCRIPTION,
@@ -20,6 +23,8 @@ import { createDefaultOpsStore } from "./store.js";
 
 export type CreateOpsToolsDeps = {
   fetchImpl?: FetchImpl;
+  memoryStore?: MemoryStore;
+  userId?: string;
 };
 
 export function asObservation(error: unknown): string {
@@ -152,6 +157,45 @@ export function createOpsTools(
     },
   );
 
+  const forget_preference = tool(
+    async ({ description }) => {
+      try {
+        const userId = deps.userId?.trim() ?? "";
+        const memoryStore = deps.memoryStore;
+        if (!userId || memoryStore === undefined) {
+          return asObservation(new UserIdRequiredError());
+        }
+
+        const candidates = await memoryStore.recall(userId, description);
+        if (candidates.length === 0) {
+          return JSON.stringify({ forgotten: false });
+        }
+
+        const top = candidates[0]!;
+        memoryStore.forget(userId, top.id);
+        return JSON.stringify({
+          forgotten: true,
+          id: top.id,
+          fact: top.fact,
+        });
+      } catch (error: unknown) {
+        return asObservation(error);
+      }
+    },
+    {
+      name: "forget_preference",
+      description:
+        "Esquece uma preferência ou fato durável da memória do plantonista atual, a partir de uma descrição em texto. Use quando o plantonista pedir para esquecer ou corrigir uma preferência aprendida. Não use para apagar alertas/incidentes.",
+      schema: z.object({
+        description: z
+          .string()
+          .trim()
+          .min(1)
+          .describe("Descrição da preferência ou fato a esquecer"),
+      }),
+    },
+  );
+
   return {
     store,
     tools: [
@@ -161,6 +205,7 @@ export function createOpsTools(
       list_incidents,
       consultar_runbook,
       check_provider_status,
+      forget_preference,
     ],
   };
 }

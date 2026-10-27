@@ -37,6 +37,14 @@ export class MemoryNotFoundError extends DomainError {}
 
 export class EmbeddingUnavailableError extends DomainError {}
 
+export class UserIdRequiredError extends DomainError {
+  constructor(
+    message = "userId é obrigatório para esquecer preferências da memória.",
+  ) {
+    super(message);
+  }
+}
+
 export class ChatTimeoutError extends DomainError {
   constructor(timeoutMs: number) {
     const seconds = timeoutMs / 1000;

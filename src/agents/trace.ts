@@ -13,6 +13,7 @@ const TOOL_NAMES = new Set<ToolName>([
   "list_incidents",
   "consultar_runbook",
   "check_provider_status",
+  "forget_preference",
 ]);
 
 function messageText(content: unknown): string {

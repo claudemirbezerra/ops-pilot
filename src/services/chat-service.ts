@@ -4,6 +4,10 @@ import {
 } from "../agents/index.js";
 import type { Critic } from "../agents/critic.js";
 import {
+  createLlmLearningExtractor,
+  type LearningExtractor,
+} from "../agents/learning-extractor.js";
+import {
   buildEmptyInputResult,
   isBlankInput,
   type StrategyResult,
@@ -15,6 +19,7 @@ import {
   renderHistoryPrompt,
   selectHistoryWindow,
 } from "./history-prompt.js";
+import { scheduleLearning } from "./learning-reflector.js";
 import { renderMemoryPrompt } from "./memory-prompt.js";
 
 export type RunChatInput = {
@@ -28,6 +33,7 @@ export type RunChatInput = {
   conversationStore: ConversationStore;
   userId?: string;
   memoryStore: MemoryStore;
+  learningExtractor?: LearningExtractor;
 };
 
 export type ChatResult = Omit<StrategyResult, "metrics"> & {
@@ -79,6 +85,8 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
   const runPromise = strategy.run(prompt, {
     maxIterations: DEFAULT_MAX_ITERATIONS,
     maxReflections: DEFAULT_MAX_REFLECTIONS,
+    userId: input.userId,
+    memoryStore: input.memoryStore,
   });
 
   // Avoid unhandled rejection if the timer wins and the strategy settles later.
@@ -104,6 +112,16 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
       role: "assistant",
       content: result.answer,
     });
+
+    if (input.userId !== undefined) {
+      scheduleLearning({
+        userId: input.userId,
+        userMessage: input.message,
+        memoryStore: input.memoryStore,
+        extractor: input.learningExtractor ?? createLlmLearningExtractor(),
+      });
+    }
+
     return {
       ...result,
       conversationId,
