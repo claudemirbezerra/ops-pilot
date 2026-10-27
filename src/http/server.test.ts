@@ -10,8 +10,28 @@ import {
   type StrategyResult,
 } from "../agents/strategy.js";
 import { ChatTimeoutError } from "../domain/errors.js";
+import type { Embedder } from "../domain/types.js";
+import { SqliteMemoryStore } from "../memory/memory-store.js";
+import { EMBEDDING_DIMS } from "../memory/similarity.js";
 import { SqliteConversationStore } from "../store/sqlite-conversation-store.js";
 import { createApp } from "./server.js";
+
+function unitAt(index: number): Float32Array {
+  const vector = new Float32Array(EMBEDDING_DIMS);
+  vector[index] = 1;
+  return vector;
+}
+
+function fakeMemoryStore(
+  map: Record<string, Float32Array> = {},
+): SqliteMemoryStore {
+  const embedder: Embedder = {
+    async embed(text: string): Promise<Float32Array> {
+      return map[text] ?? unitAt(0);
+    },
+  };
+  return new SqliteMemoryStore(":memory:", embedder);
+}
 
 type CallLog = {
   message: string;
@@ -91,6 +111,7 @@ const reactFake = makeFake("react", reactCalls);
 const planFake = makeFake("plan-and-execute", planCalls);
 const critic = approvingCritic(criticCalls);
 const sharedStore = new SqliteConversationStore(":memory:");
+const sharedMemory = fakeMemoryStore();
 
 let baseUrl = "";
 let server: Server;
@@ -105,6 +126,7 @@ before(async () => {
       critic,
       timeoutMs: 180_000,
       conversationStore: sharedStore,
+      memoryStore: sharedMemory,
     }),
   );
   baseUrl = started.baseUrl;
@@ -298,6 +320,7 @@ test("short timeout with never-settling fake returns 504", async () => {
       critic,
       timeoutMs: 30,
       conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
     }),
   );
 
@@ -332,6 +355,7 @@ test("fast fake still returns 200 under short timeout", async () => {
       critic,
       timeoutMs: 30,
       conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
     }),
   );
 
@@ -356,6 +380,7 @@ test("new conversation returns an id and the fake still sees the raw message", a
         "plan-and-execute": makeFake("plan-and-execute", []),
       },
       conversationStore: store,
+      memoryStore: fakeMemoryStore(),
     }),
   );
 
@@ -398,6 +423,7 @@ test("invalid conversationId is 400 and does not call the fake", async () => {
         "plan-and-execute": makeFake("plan-and-execute", []),
       },
       conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
     }),
   );
 
@@ -434,6 +460,7 @@ test("first turn reports one history message and the labeled prompt", async () =
         "plan-and-execute": makeFake("plan-and-execute", []),
       },
       conversationStore: store,
+      memoryStore: fakeMemoryStore(),
     }),
   );
 
@@ -478,6 +505,7 @@ test("prompt keeps only the 12 newest messages", async () => {
         "plan-and-execute": makeFake("plan-and-execute", []),
       },
       conversationStore: store,
+      memoryStore: fakeMemoryStore(),
     }),
   );
 
@@ -514,6 +542,7 @@ test("reflection counts historyMessages once", async () => {
       },
       critic: approvingCritic(localCritic),
       conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
     }),
   );
 
@@ -558,6 +587,7 @@ test("unknown conversationId is 404 and does not run or persist", async () => {
         "plan-and-execute": makeFake("plan-and-execute", []),
       },
       conversationStore: store,
+      memoryStore: fakeMemoryStore(),
     }),
   );
 
@@ -589,6 +619,7 @@ test("unknown strategy wins over an unknown conversationId", async () => {
         "plan-and-execute": makeFake("plan-and-execute", []),
       },
       conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
     }),
   );
 
@@ -616,6 +647,7 @@ test("blank message does not persist and skips the strategy", async () => {
         "plan-and-execute": makeFake("plan-and-execute", []),
       },
       conversationStore: store,
+      memoryStore: fakeMemoryStore(),
     }),
   );
 
@@ -664,6 +696,7 @@ test("timeout does not create a conversation", async () => {
       },
       timeoutMs: 30,
       conversationStore: store,
+      memoryStore: fakeMemoryStore(),
     }),
   );
 
@@ -673,6 +706,133 @@ test("timeout does not create a conversation", async () => {
     assert.equal(result.json.conversationId, undefined);
     assert.equal(countTable(store, "conversations"), 0);
     assert.equal(countTable(store, "messages"), 0);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("POST /chat with userId injects recalled memory into the prompt", async () => {
+  const calls: CallLog[] = [];
+  const fact = "o cluster de pagamentos é o azul";
+  const memory = fakeMemoryStore({
+    [fact]: unitAt(8),
+    "qual cor?": unitAt(8),
+  });
+  await memory.remember("plantonista-42", fact);
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: memory,
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "qual cor?",
+      userId: "plantonista-42",
+    });
+    assert.equal(result.status, 200);
+    assert.equal(historyMessagesOf(result.json), 1);
+    const prompt = String(calls[0]?.message);
+    assert.match(prompt, /^Memória do plantonista:/);
+    assert.match(prompt, new RegExp(fact));
+    assert.match(prompt, /Plantonista: qual cor\?$/);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("POST /chat without userId keeps history-only prompt", async () => {
+  const calls: CallLog[] = [];
+  const memory = fakeMemoryStore({
+    "fato secreto": unitAt(9),
+    listar: unitAt(9),
+  });
+  await memory.remember("alguem", "fato secreto");
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: memory,
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, { message: "listar" });
+    assert.equal(result.status, 200);
+    assert.equal(calls[0]?.message, "Plantonista: listar");
+    assert.equal(String(calls[0]?.message).includes("Memória do plantonista"), false);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("invalid userId is 400 and does not call the fake", async () => {
+  const calls: CallLog[] = [];
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
+    }),
+  );
+
+  try {
+    for (const userId of [1, null, "", "   "]) {
+      const result = await postJson(started.baseUrl, {
+        message: "oi",
+        userId,
+      });
+      assert.equal(result.status, 400);
+      const issues = result.json.issues as Array<{ path: unknown[] }>;
+      assert.ok(issues.some((issue) => issue.path.includes("userId")));
+    }
+    assert.equal(calls.length, 0);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("blank message with userId skips recall side effects", async () => {
+  const calls: CallLog[] = [];
+  const memory = fakeMemoryStore({ fato: unitAt(2) });
+  await memory.remember("u1", "fato");
+  const before = memory.database
+    .prepare(`SELECT COUNT(*) AS c FROM memories`)
+    .get() as { c: number };
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: memory,
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "   ",
+      userId: "u1",
+    });
+    assert.equal(result.status, 200);
+    assert.equal(historyMessagesOf(result.json), 0);
+    assert.equal(calls.length, 0);
+    const after = memory.database
+      .prepare(`SELECT COUNT(*) AS c FROM memories`)
+      .get() as { c: number };
+    assert.equal(after.c, before.c);
   } finally {
     await closeServer(started.server);
   }
