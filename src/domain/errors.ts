@@ -31,6 +31,12 @@ export class ConversationNotFoundError extends DomainError {}
 
 export class InvalidConversationMessageError extends DomainError {}
 
+export class InvalidMemoryInputError extends DomainError {}
+
+export class MemoryNotFoundError extends DomainError {}
+
+export class EmbeddingUnavailableError extends DomainError {}
+
 export class ChatTimeoutError extends DomainError {
   constructor(timeoutMs: number) {
     const seconds = timeoutMs / 1000;
