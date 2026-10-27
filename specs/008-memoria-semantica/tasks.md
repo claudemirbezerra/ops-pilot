@@ -41,7 +41,7 @@
 - [X] T006 Add to `src/domain/types.ts` per `data-model.md` / `contracts/memory-store.md`: `MemoryRecord = { id: string; userId: string; fact: string; createdAt: number }`; `RecalledMemory = MemoryRecord & { score: number }`; `Embedder = { embed(text: string): Promise<Float32Array> }`; `MemoryStore` with `remember(userId: string, fact: string): Promise<MemoryRecord>`, `recall(userId: string, query: string): Promise<RecalledMemory[]>`, `forget(userId: string, memoryId: string): void`
 - [X] T007 [P] Add `InvalidMemoryInputError`, `MemoryNotFoundError`, and `EmbeddingUnavailableError` extending `DomainError` in `src/domain/errors.ts`
 - [X] T008 Implement pure helpers in `src/memory/similarity.ts`: `dot(a: Float32Array, b: Float32Array): number` (produto interno); `shouldDedup(score: number): boolean` true iff `score > 0.92` (strict greater than `DEDUP_THRESHOLD`); `rankRecall(candidates: { id: string; createdAt: number; score: number }[]): …` filters `score >= 0.3`, sorts score DESC then `createdAt` ASC then `id` ASC, returns at most 3. No I/O
-- [ ] T009 [P] Write pure cases in `src/memory/similarity.test.ts`: orthogonal unit vectors → `dot` 0; identical → ~1; `shouldDedup(0.92)` false and `shouldDedup(0.9201)` true; ranking drops `< 0.3`, keeps top 3, stable tie-break on equal score
+- [X] T009 [P] Write pure cases in `src/memory/similarity.test.ts`: orthogonal unit vectors → `dot` 0; identical → ~1; `shouldDedup(0.92)` false and `shouldDedup(0.9201)` true; ranking drops `< 0.3`, keeps top 3, stable tie-break on equal score
 - [ ] T010 Run `npm run typecheck` and `npm test -- src/memory/similarity.test.ts` until green
 
 **Checkpoint**: Foundation ready — embeddings, store e canal podem começar
