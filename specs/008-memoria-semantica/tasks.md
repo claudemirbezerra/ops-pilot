@@ -26,7 +26,7 @@
 
 - [X] T001 Add `@huggingface/transformers` to `package.json` dependencies via `npm install @huggingface/transformers` (keep existing LangChain/Express/Zod versions)
 - [X] T002 [P] Create `src/memory/embeddings.ts` exporting `type Embedder = { embed(text: string): Promise<Float32Array> }`, stub `createTransformersEmbedder` / `getDefaultEmbedder` that throw `Error("not implemented")`
-- [ ] T003 [P] Create `src/memory/similarity.ts` exporting stubs `dot`, `shouldDedup`, `rankRecall` that throw `Error("not implemented")`, plus constants `DEDUP_THRESHOLD = 0.92`, `RECALL_MIN_SCORE = 0.3`, `RECALL_TOP_K = 3`, `EMBEDDING_DIMS = 384`
+- [X] T003 [P] Create `src/memory/similarity.ts` exporting stubs `dot`, `shouldDedup`, `rankRecall` that throw `Error("not implemented")`, plus constants `DEDUP_THRESHOLD = 0.92`, `RECALL_MIN_SCORE = 0.3`, `RECALL_TOP_K = 3`, `EMBEDDING_DIMS = 384`
 - [ ] T004 [P] Create `src/memory/memory-store.ts` exporting `class SqliteMemoryStore` with `constructor(path?: string, embedder?: Embedder)` defaulting path to `process.env.OPSPILOT_DB ?? "./data/opspilot.db"`; methods may throw `Error("not implemented")`
 - [ ] T005 [P] Create empty test shells importing `node:test` and `node:assert/strict`: `src/memory/similarity.test.ts`, `src/memory/memory-store.test.ts`, `src/memory/embeddings.test.ts`, `src/services/memory-prompt.test.ts`
 
