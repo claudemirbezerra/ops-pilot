@@ -12,6 +12,7 @@
     "mcp": "node --env-file=.env --import tsx src/mcp/server.ts"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.2",
     "@langchain/core": "^1.2.20",
     "@langchain/langgraph": "^1.5.2",
     "@langchain/openai": "^1.6.3",
