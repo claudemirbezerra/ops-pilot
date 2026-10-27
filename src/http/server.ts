@@ -16,6 +16,7 @@ import { runChat } from "../services/chat-service.js";
 import { SqliteConversationStore } from "../store/sqlite-conversation-store.js";
 import {
   ChatTimeoutError,
+  ConversationNotFoundError,
   UnknownStrategyError,
 } from "../domain/errors.js";
 
@@ -96,6 +97,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
     } catch (error: unknown) {
       if (error instanceof UnknownStrategyError) {
         res.status(422).json({ message: error.message });
+        return;
+      }
+      if (error instanceof ConversationNotFoundError) {
+        res.status(404).json({ message: error.message });
         return;
       }
       if (error instanceof ChatTimeoutError) {

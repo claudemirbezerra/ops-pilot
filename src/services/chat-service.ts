@@ -3,7 +3,11 @@ import {
   type ChannelRegistry,
 } from "../agents/index.js";
 import type { Critic } from "../agents/critic.js";
-import type { StrategyResult } from "../agents/strategy.js";
+import {
+  buildEmptyInputResult,
+  isBlankInput,
+  type StrategyResult,
+} from "../agents/strategy.js";
 import { ChatTimeoutError } from "../domain/errors.js";
 import type { ConversationStore } from "../domain/types.js";
 import {
@@ -25,7 +29,7 @@ export type RunChatInput = {
 
 export type ChatResult = Omit<StrategyResult, "metrics"> & {
   metrics: StrategyResult["metrics"] & { historyMessages: number };
-  conversationId: string;
+  conversationId?: string;
 };
 
 const DEFAULT_TIMEOUT_MS = 180_000;
@@ -47,6 +51,18 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
   const prior = input.conversationId
     ? input.conversationStore.lastMessages(input.conversationId, HISTORY_LIMIT)
     : [];
+
+  if (isBlankInput(input.message)) {
+    const empty = buildEmptyInputResult();
+    return {
+      ...empty,
+      metrics: { ...empty.metrics, historyMessages: 0 },
+      ...(input.conversationId !== undefined
+        ? { conversationId: input.conversationId }
+        : {}),
+    };
+  }
+
   const window = selectHistoryWindow(prior, input.message);
   const prompt = renderHistoryPrompt(window);
 
