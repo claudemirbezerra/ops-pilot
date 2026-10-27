@@ -127,7 +127,7 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T026 [US4] Add semantic case in `src/memory/embeddings.test.ts` (or store test with real embedder): *remember* fact `o cluster de pagamentos é o azul` for a user; *recall* query `qual cor do ambiente de payments?`; assert returned fact includes the remembered text, `score >= 0.3`, and that fact/query share **no** common word (tokenize/split helper in the test); use generous timeout; skip or document cache if environment forbids download — prefer always-on with long timeout matching quickstart
+- [X] T026 [US4] Add semantic case in `src/memory/embeddings.test.ts` (or store test with real embedder): *remember* fact `o cluster de pagamentos é o azul` for a user; *recall* query `qual cor do ambiente de payments?`; assert returned fact includes the remembered text, `score >= 0.3`, and that fact/query share **no** common word (tokenize/split helper in the test); use generous timeout; skip or document cache if environment forbids download — prefer always-on with long timeout matching quickstart
 - [ ] T027 [P] [US4] Confirm in a small assert or comment-backed check that `src/arena.ts` and `src/bench.ts` do not import `SqliteMemoryStore` / `memory-prompt` / require `userId` (no behavior change). Add a regression note in `src/http/server.test.ts` if needed that omitted `userId` keeps 007 history-only prompt
 
 ### Implementation for User Story 4
