@@ -86,7 +86,7 @@
 
 ### Implementation for User Story 2
 
-- [ ] T018 [US2] Complete *recall* in `src/memory/memory-store.ts` per `contracts/memory-store.md`: embed query, score all facts for `userId`, filter/sort via `rankRecall`, return `RecalledMemory[]` without BLOB
+- [X] T018 [US2] Complete *recall* in `src/memory/memory-store.ts` per `contracts/memory-store.md`: embed query, score all facts for `userId`, filter/sort via `rankRecall`, return `RecalledMemory[]` without BLOB
 - [ ] T019 [P] [US2] Implement `renderMemoryPrompt` in `src/services/memory-prompt.ts` per data-model (header + `- fact` lines; empty → `""`). No I/O
 - [ ] T020 [US2] Extend `runChat` in `src/services/chat-service.ts`: accept `userId?: string` and `memoryStore: MemoryStore`; after blank-input short-circuit and conversation load, if `userId` present `await memoryStore.recall(userId, message)`, compose `memoryBlock ? memoryBlock + "\n\n" + history : history`, pass that string to `strategy.run`; do **not** call *remember*; keep conversation append behavior from 007; map embedding failures by letting `EmbeddingUnavailableError` propagate
 - [ ] T021 [US2] In `src/http/server.ts`, add `userId: z.string().trim().min(1).optional()` to body schema; add `memoryStore?: MemoryStore` to `CreateAppOptions` defaulting to `new SqliteMemoryStore()`; pass into `runChat`; translate `EmbeddingUnavailableError` to a 5xx JSON with stable `message` (not 504); leave 400/422/404/504 bodies otherwise unchanged
