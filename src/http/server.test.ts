@@ -3,10 +3,11 @@ import type { Server } from "node:http";
 import { after, before, test } from "node:test";
 
 import type { Critic } from "../agents/critic.js";
-import type {
-  ReasoningStrategy,
-  StrategyOptions,
-  StrategyResult,
+import {
+  EMPTY_INPUT_ANSWER,
+  type ReasoningStrategy,
+  type StrategyOptions,
+  type StrategyResult,
 } from "../agents/strategy.js";
 import { ChatTimeoutError } from "../domain/errors.js";
 import { SqliteConversationStore } from "../store/sqlite-conversation-store.js";
@@ -528,5 +529,151 @@ test("reflection counts historyMessages once", async () => {
     await new Promise<void>((resolve, reject) => {
       started.server.close((error) => (error ? reject(error) : resolve()));
     });
+  }
+});
+
+function countTable(
+  store: SqliteConversationStore,
+  table: "conversations" | "messages",
+): number {
+  const row = store.database
+    .prepare(`SELECT COUNT(*) AS n FROM ${table}`)
+    .get() as { n: number };
+  return Number(row.n);
+}
+
+async function closeServer(active: Server): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    active.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
+test("unknown conversationId is 404 and does not run or persist", async () => {
+  const calls: CallLog[] = [];
+  const store = new SqliteConversationStore(":memory:");
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: store,
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "oi",
+      conversationId: "nao-existe",
+    });
+    assert.equal(result.status, 404);
+    assert.equal(result.json.message, "Conversa desconhecida: nao-existe.");
+    assert.equal(result.json.answer, undefined);
+    assert.equal(result.json.trace, undefined);
+    assert.equal(result.json.metrics, undefined);
+    assert.equal(result.json.conversationId, undefined);
+    assert.equal(calls.length, 0);
+    assert.equal(countTable(store, "conversations"), 0);
+    assert.equal(countTable(store, "messages"), 0);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("unknown strategy wins over an unknown conversationId", async () => {
+  const calls: CallLog[] = [];
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "oi",
+      strategy: "nope",
+      conversationId: "nao-existe",
+    });
+    assert.equal(result.status, 422);
+    assert.equal(calls.length, 0);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("blank message does not persist and skips the strategy", async () => {
+  const calls: CallLog[] = [];
+  const store = new SqliteConversationStore(":memory:");
+  const existingId = store.create();
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: store,
+    }),
+  );
+
+  try {
+    const fresh = await postJson(started.baseUrl, { message: "   " });
+    assert.equal(fresh.status, 200);
+    assert.equal(fresh.json.answer, EMPTY_INPUT_ANSWER);
+    assert.equal(historyMessagesOf(fresh.json), 0);
+    assert.equal(fresh.json.conversationId, undefined);
+    assert.equal(calls.length, 0);
+
+    const echoed = await postJson(started.baseUrl, {
+      message: "   ",
+      conversationId: existingId,
+    });
+    assert.equal(echoed.status, 200);
+    assert.equal(echoed.json.conversationId, existingId);
+    assert.equal(historyMessagesOf(echoed.json), 0);
+    assert.deepEqual(store.lastMessages(existingId, 12), []);
+
+    const missing = await postJson(started.baseUrl, {
+      message: "   ",
+      conversationId: "nao-existe",
+    });
+    assert.equal(missing.status, 404);
+
+    const unknownStrategy = await postJson(started.baseUrl, {
+      message: "   ",
+      strategy: "nope",
+    });
+    assert.equal(unknownStrategy.status, 422);
+    assert.equal(calls.length, 0);
+    assert.equal(countTable(store, "messages"), 0);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("timeout does not create a conversation", async () => {
+  const store = new SqliteConversationStore(":memory:");
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeNeverSettling("react"),
+        "plan-and-execute": makeNeverSettling("plan-and-execute"),
+      },
+      timeoutMs: 30,
+      conversationStore: store,
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, { message: "espera" });
+    assert.equal(result.status, 504);
+    assert.equal(result.json.conversationId, undefined);
+    assert.equal(countTable(store, "conversations"), 0);
+    assert.equal(countTable(store, "messages"), 0);
+  } finally {
+    await closeServer(started.server);
   }
 });
