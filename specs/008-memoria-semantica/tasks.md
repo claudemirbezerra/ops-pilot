@@ -90,7 +90,7 @@
 - [X] T019 [P] [US2] Implement `renderMemoryPrompt` in `src/services/memory-prompt.ts` per data-model (header + `- fact` lines; empty → `""`). No I/O
 - [X] T020 [US2] Extend `runChat` in `src/services/chat-service.ts`: accept `userId?: string` and `memoryStore: MemoryStore`; after blank-input short-circuit and conversation load, if `userId` present `await memoryStore.recall(userId, message)`, compose `memoryBlock ? memoryBlock + "\n\n" + history : history`, pass that string to `strategy.run`; do **not** call *remember*; keep conversation append behavior from 007; map embedding failures by letting `EmbeddingUnavailableError` propagate
 - [X] T021 [US2] In `src/http/server.ts`, add `userId: z.string().trim().min(1).optional()` to body schema; add `memoryStore?: MemoryStore` to `CreateAppOptions` defaulting to `new SqliteMemoryStore()`; pass into `runChat`; translate `EmbeddingUnavailableError` to a 5xx JSON with stable `message` (not 504); leave 400/422/404/504 bodies otherwise unchanged
-- [ ] T022 [US2] Run `npm test` for `src/memory/memory-store.test.ts`, `src/services/memory-prompt.test.ts`, and `src/http/server.test.ts`, plus `npm run typecheck`, until US2 cases and existing channel tests are green
+- [X] T022 [US2] Run `npm test` for `src/memory/memory-store.test.ts`, `src/services/memory-prompt.test.ts`, and `src/http/server.test.ts`, plus `npm run typecheck`, until US2 cases and existing channel tests are green
 
 **Checkpoint**: Recall entra no prompt; canal sem `userId` permanece igual
 
