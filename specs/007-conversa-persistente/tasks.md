@@ -107,7 +107,7 @@
 ### Implementation for User Story 3
 
 - [X] T020 [US3] In `src/services/chat-service.ts` enforce this order: resolve strategy first (unknown name throws `UnknownStrategyError` before any store read); if `conversationId` is present, `lastMessages(id, HISTORY_LIMIT)` so a missing id throws `ConversationNotFoundError` before `strategy.run`; if `isBlankInput(message)`, return `buildEmptyInputResult()` plus `historyMessages: 0` and the existing id when it was valid, without `strategy.run`, `create` or `append`; compose and run only after that; persist only when the timeout race returns a result. In `src/http/server.ts` map `ConversationNotFoundError` to 404 `{ message: error.message }` and do not attach `conversationId` on 400/422/504
-- [ ] T021 [US3] Run `npm test` for `src/http/server.test.ts` until the US3 cases are green
+- [X] T021 [US3] Run `npm test` for `src/http/server.test.ts` until the US3 cases are green
 
 **Checkpoint**: Falha de corpo, de estratégia, de id ou de tempo deixa o store como estava
 
