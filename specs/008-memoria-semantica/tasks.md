@@ -143,7 +143,7 @@
 
 **Purpose**: Fechamento da feature
 
-- [ ] T030 [P] Re-read `specs/008-memoria-semantica/quickstart.md` and tick that automated rows match the suite (fix gaps only if a listed case is missing)
+- [X] T030 [P] Re-read `specs/008-memoria-semantica/quickstart.md` and tick that automated rows match the suite (fix gaps only if a listed case is missing)
 - [ ] T031 Run final `npm test` + `npm run typecheck`; confirm no secrets committed and new code does not read `.env` for memory logic
 
 ---
