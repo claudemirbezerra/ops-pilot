@@ -77,7 +77,14 @@
       "serviceSlug": "checkout",
       "severity": "critical",
       "status": "resolved"
+    },
+    {
+      "id": 2,
+      "title": "Checkout crítico",
+      "serviceSlug": "checkout",
+      "severity": "critical",
+      "status": "open"
     }
   ],
-  "nextIncidentId": 2
+  "nextIncidentId": 3
 }
