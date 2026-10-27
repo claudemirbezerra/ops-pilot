@@ -53,6 +53,25 @@ export type ConversationStore = {
   lastMessages(conversationId: string, limit: number): ConversationMessage[];
 };
 
+export type MemoryRecord = {
+  id: string;
+  userId: string;
+  fact: string;
+  createdAt: number;
+};
+
+export type RecalledMemory = MemoryRecord & { score: number };
+
+export type Embedder = {
+  embed(text: string): Promise<Float32Array>;
+};
+
+export type MemoryStore = {
+  remember(userId: string, fact: string): Promise<MemoryRecord>;
+  recall(userId: string, query: string): Promise<RecalledMemory[]>;
+  forget(userId: string, memoryId: string): void;
+};
+
 export type OpsStore = {
   seed(data: SeedPayload): void;
   listAlerts(status: AlertStatus | "all"): AlertRecord[];
