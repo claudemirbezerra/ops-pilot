@@ -125,7 +125,7 @@ test("POST /chat with only message returns 200 and reuses the same answer", asyn
 
   assert.equal(first.status, 200);
   assert.equal(second.status, 200);
-  assert.equal(first.json.answer, "react:listar alertas");
+  assert.equal(first.json.answer, "react:Plantonista: listar alertas");
   assert.equal(second.json.answer, first.json.answer);
   assert.ok(Array.isArray(first.json.trace));
   assert.ok(first.json.metrics && typeof first.json.metrics === "object");
@@ -154,7 +154,7 @@ test("plan-and-execute without reflect runs only that fake", async () => {
   });
 
   assert.equal(result.status, 200);
-  assert.equal(result.json.answer, "plan-and-execute:abrir incidente");
+  assert.equal(result.json.answer, "plan-and-execute:Plantonista: abrir incidente");
   assert.equal(planCalls.length, 1);
   assert.equal(reactCalls.length, 0);
   assert.equal(criticCalls.count, 0);
@@ -238,7 +238,7 @@ test("extra keys are ignored when message is valid", async () => {
     foo: "bar",
   });
   assert.equal(result.status, 200);
-  assert.equal(result.json.answer, "react:com extra");
+  assert.equal(result.json.answer, "react:Plantonista: com extra");
 });
 
 test("empty strategy string is 422 not 400", async () => {
@@ -337,7 +337,7 @@ test("fast fake still returns 200 under short timeout", async () => {
   try {
     const result = await postJson(started.baseUrl, { message: "rapido" });
     assert.equal(result.status, 200);
-    assert.equal(result.json.answer, "react:rapido");
+    assert.equal(result.json.answer, "react:Plantonista: rapido");
   } finally {
     await new Promise<void>((resolve, reject) => {
       started.server.close((error) => (error ? reject(error) : resolve()));
@@ -369,7 +369,7 @@ test("new conversation returns an id and the fake still sees the raw message", a
     assert.equal(first.status, 200);
     assert.equal(typeof first.json.conversationId, "string");
     assert.ok(String(first.json.conversationId).length > 0);
-    assert.equal(calls[0]?.message, "primeiro");
+    assert.equal(calls[0]?.message, "Plantonista: primeiro");
     assert.equal(second.status, 200);
     assert.equal(second.json.conversationId, first.json.conversationId);
     assert.notEqual(other.json.conversationId, first.json.conversationId);
