@@ -37,7 +37,7 @@
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
 - [X] T004 Add to `src/domain/types.ts` per `data-model.md` / `contracts/conversation-store.md`: `ConversationRole = "user" | "assistant"`; `ConversationMessage = { role: ConversationRole; content: string }`; `ConversationStore` with `create(): string`, `append(conversationId: string, message: ConversationMessage): void`, `lastMessages(conversationId: string, limit: number): ConversationMessage[]`
-- [ ] T005 [P] Add `ConversationNotFoundError` and `InvalidConversationMessageError` extending `DomainError` in `src/domain/errors.ts` (404 copy is fixed later: `Conversa desconhecida: <id>.`)
+- [X] T005 [P] Add `ConversationNotFoundError` and `InvalidConversationMessageError` extending `DomainError` in `src/domain/errors.ts` (404 copy is fixed later: `Conversa desconhecida: <id>.`)
 - [ ] T006 Run `npm run typecheck` and confirm `src/domain/types.ts` and `src/domain/errors.ts` compile under `strict: true`
 
 **Checkpoint**: Foundation ready — store, prompt e canal podem começar

@@ -27,6 +27,10 @@ export class EmptyStrategySelectionError extends DomainError {}
 
 export class InvalidMaxReflectionsError extends DomainError {}
 
+export class ConversationNotFoundError extends DomainError {}
+
+export class InvalidConversationMessageError extends DomainError {}
+
 export class ChatTimeoutError extends DomainError {
   constructor(timeoutMs: number) {
     const seconds = timeoutMs / 1000;
