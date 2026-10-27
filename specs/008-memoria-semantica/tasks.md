@@ -133,7 +133,7 @@
 ### Implementation for User Story 4
 
 - [X] T028 [US4] Wire production defaults: ensure `src/index.ts` / `createApp()` path constructs `SqliteMemoryStore()` without breaking existing boot; no arena/bench edits unless typecheck forces unused imports cleanup
-- [ ] T029 [US4] Run full `npm test` and `npm run typecheck` until green per `quickstart.md` table (cases 1–14)
+- [X] T029 [US4] Run full `npm test` and `npm run typecheck` until green per `quickstart.md` table (cases 1–14)
 
 **Checkpoint**: SC-003 e regressão do canal cobertos; feature conferível sem LLM de chat externo
 
