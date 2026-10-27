@@ -58,7 +58,7 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T011 [P] [US1] Write store *remember*/dedup/isolation cases in `src/memory/memory-store.test.ts` using `new SqliteMemoryStore(":memory:", fakeEmbedder)` only (no temp file): blank `userId` or `fact` (`""` / `"   "`) throws `InvalidMemoryInputError` and inserts nothing; *remember* returns `MemoryRecord` with non-empty `id`, same `userId`, raw `fact` (no trim of content beyond validation), and `createdAt`; second *remember* whose fake vectors yield `dot > 0.92` returns the **existing** id and `SELECT COUNT(*)` stays 1; second fact with `dot <= 0.92` inserts a second row; facts for `user-a` never appear when recalling/inspecting `user-b`; expose `readonly database` for COUNT asserts like other stores
+- [X] T011 [P] [US1] Write store *remember*/dedup/isolation cases in `src/memory/memory-store.test.ts` using `new SqliteMemoryStore(":memory:", fakeEmbedder)` only (no temp file): blank `userId` or `fact` (`""` / `"   "`) throws `InvalidMemoryInputError` and inserts nothing; *remember* returns `MemoryRecord` with non-empty `id`, same `userId`, raw `fact` (no trim of content beyond validation), and `createdAt`; second *remember* whose fake vectors yield `dot > 0.92` returns the **existing** id and `SELECT COUNT(*)` stays 1; second fact with `dot <= 0.92` inserts a second row; facts for `user-a` never appear when recalling/inspecting `user-b`; expose `readonly database` for COUNT asserts like other stores
 
 ### Implementation for User Story 1
 
