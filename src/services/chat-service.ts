@@ -9,12 +9,13 @@ import {
   type StrategyResult,
 } from "../agents/strategy.js";
 import { ChatTimeoutError } from "../domain/errors.js";
-import type { ConversationStore } from "../domain/types.js";
+import type { ConversationStore, MemoryStore } from "../domain/types.js";
 import {
   HISTORY_LIMIT,
   renderHistoryPrompt,
   selectHistoryWindow,
 } from "./history-prompt.js";
+import { renderMemoryPrompt } from "./memory-prompt.js";
 
 export type RunChatInput = {
   message: string;
@@ -25,6 +26,8 @@ export type RunChatInput = {
   timeoutMs?: number;
   conversationId?: string;
   conversationStore: ConversationStore;
+  userId?: string;
+  memoryStore: MemoryStore;
 };
 
 export type ChatResult = Omit<StrategyResult, "metrics"> & {
@@ -64,7 +67,14 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
   }
 
   const window = selectHistoryWindow(prior, input.message);
-  const prompt = renderHistoryPrompt(window);
+  const history = renderHistoryPrompt(window);
+
+  let prompt = history;
+  if (input.userId !== undefined) {
+    const recalled = await input.memoryStore.recall(input.userId, input.message);
+    const memoryBlock = renderMemoryPrompt(recalled);
+    prompt = memoryBlock ? `${memoryBlock}\n\n${history}` : history;
+  }
 
   const runPromise = strategy.run(prompt, {
     maxIterations: DEFAULT_MAX_ITERATIONS,
