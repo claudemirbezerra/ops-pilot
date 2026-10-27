@@ -11,12 +11,14 @@ import {
   type ChannelRegistry,
 } from "../agents/index.js";
 import type { Critic } from "../agents/critic.js";
-import type { ConversationStore } from "../domain/types.js";
+import type { ConversationStore, MemoryStore } from "../domain/types.js";
 import { runChat } from "../services/chat-service.js";
 import { SqliteConversationStore } from "../store/sqlite-conversation-store.js";
+import { SqliteMemoryStore } from "../memory/memory-store.js";
 import {
   ChatTimeoutError,
   ConversationNotFoundError,
+  EmbeddingUnavailableError,
   UnknownStrategyError,
 } from "../domain/errors.js";
 
@@ -27,6 +29,7 @@ const chatBodySchema = z.object({
   strategy: z.string().optional(),
   reflect: z.boolean().optional(),
   conversationId: z.string().trim().min(1).optional(),
+  userId: z.string().trim().min(1).optional(),
 });
 
 export type CreateAppOptions = {
@@ -34,6 +37,7 @@ export type CreateAppOptions = {
   critic?: Critic;
   timeoutMs?: number;
   conversationStore?: ConversationStore;
+  memoryStore?: MemoryStore;
 };
 
 export function createApp(options: CreateAppOptions = {}): Express {
@@ -42,6 +46,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   const timeoutMs = options.timeoutMs ?? DEFAULT_CHAT_TIMEOUT_MS;
   const conversationStore =
     options.conversationStore ?? new SqliteConversationStore();
+  const memoryStore = options.memoryStore ?? new SqliteMemoryStore();
 
   const app = express();
   app.use(express.json());
@@ -85,6 +90,8 @@ export function createApp(options: CreateAppOptions = {}): Express {
         timeoutMs,
         conversationId: parsed.data.conversationId,
         conversationStore,
+        userId: parsed.data.userId,
+        memoryStore,
       });
       res.status(200).json({
         answer: result.answer,
@@ -105,6 +112,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
       }
       if (error instanceof ChatTimeoutError) {
         res.status(504).json({ message: error.message });
+        return;
+      }
+      if (error instanceof EmbeddingUnavailableError) {
+        res.status(503).json({ message: error.message });
         return;
       }
       throw error;
