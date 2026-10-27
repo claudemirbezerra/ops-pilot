@@ -6,6 +6,11 @@ import type { Critic } from "../agents/critic.js";
 import type { StrategyResult } from "../agents/strategy.js";
 import { ChatTimeoutError } from "../domain/errors.js";
 import type { ConversationStore } from "../domain/types.js";
+import {
+  HISTORY_LIMIT,
+  renderHistoryPrompt,
+  selectHistoryWindow,
+} from "./history-prompt.js";
 
 export type RunChatInput = {
   message: string;
@@ -18,7 +23,8 @@ export type RunChatInput = {
   conversationStore: ConversationStore;
 };
 
-export type ChatResult = StrategyResult & {
+export type ChatResult = Omit<StrategyResult, "metrics"> & {
+  metrics: StrategyResult["metrics"] & { historyMessages: number };
   conversationId: string;
 };
 
@@ -38,7 +44,13 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
     critic: input.critic,
   });
 
-  const runPromise = strategy.run(input.message, {
+  const prior = input.conversationId
+    ? input.conversationStore.lastMessages(input.conversationId, HISTORY_LIMIT)
+    : [];
+  const window = selectHistoryWindow(prior, input.message);
+  const prompt = renderHistoryPrompt(window);
+
+  const runPromise = strategy.run(prompt, {
     maxIterations: DEFAULT_MAX_ITERATIONS,
     maxReflections: DEFAULT_MAX_REFLECTIONS,
   });
@@ -66,7 +78,11 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
       role: "assistant",
       content: result.answer,
     });
-    return { ...result, conversationId };
+    return {
+      ...result,
+      conversationId,
+      metrics: { ...result.metrics, historyMessages: window.length },
+    };
   } finally {
     if (timer !== undefined) {
       clearTimeout(timer);
