@@ -5,6 +5,7 @@ import {
 import type { Critic } from "../agents/critic.js";
 import type { StrategyResult } from "../agents/strategy.js";
 import { ChatTimeoutError } from "../domain/errors.js";
+import type { ConversationStore } from "../domain/types.js";
 
 export type RunChatInput = {
   message: string;
@@ -13,13 +14,19 @@ export type RunChatInput = {
   registry?: ChannelRegistry;
   critic?: Critic;
   timeoutMs?: number;
+  conversationId?: string;
+  conversationStore: ConversationStore;
+};
+
+export type ChatResult = StrategyResult & {
+  conversationId: string;
 };
 
 const DEFAULT_TIMEOUT_MS = 180_000;
 const DEFAULT_MAX_ITERATIONS = 8;
 const DEFAULT_MAX_REFLECTIONS = 2;
 
-export async function runChat(input: RunChatInput): Promise<StrategyResult> {
+export async function runChat(input: RunChatInput): Promise<ChatResult> {
   const strategyName = input.strategy === undefined ? "react" : input.strategy;
   const reflect = input.reflect === true;
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -41,7 +48,7 @@ export async function runChat(input: RunChatInput): Promise<StrategyResult> {
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return await Promise.race([
+    const result = await Promise.race([
       runPromise,
       new Promise<never>((_resolve, reject) => {
         timer = setTimeout(() => {
@@ -49,6 +56,17 @@ export async function runChat(input: RunChatInput): Promise<StrategyResult> {
         }, timeoutMs);
       }),
     ]);
+    const conversationId =
+      input.conversationId ?? input.conversationStore.create();
+    input.conversationStore.append(conversationId, {
+      role: "user",
+      content: input.message,
+    });
+    input.conversationStore.append(conversationId, {
+      role: "assistant",
+      content: result.answer,
+    });
+    return { ...result, conversationId };
   } finally {
     if (timer !== undefined) {
       clearTimeout(timer);
