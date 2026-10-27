@@ -40,6 +40,19 @@ export type SeedPayload = {
   runbooks: RunbookRecord[];
 };
 
+export type ConversationRole = "user" | "assistant";
+
+export type ConversationMessage = {
+  role: ConversationRole;
+  content: string;
+};
+
+export type ConversationStore = {
+  create(): string;
+  append(conversationId: string, message: ConversationMessage): void;
+  lastMessages(conversationId: string, limit: number): ConversationMessage[];
+};
+
 export type OpsStore = {
   seed(data: SeedPayload): void;
   listAlerts(status: AlertStatus | "all"): AlertRecord[];
