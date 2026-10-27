@@ -4,6 +4,14 @@ import { z } from "zod";
 import { DomainError } from "../domain/errors.js";
 import type { OpsStore, Severity } from "../domain/types.js";
 import {
+  LIST_ALERTS_DESCRIPTION,
+  OPEN_INCIDENT_DESCRIPTION,
+  RESOLVE_INCIDENT_DESCRIPTION,
+  listAlertsInputSchema,
+  openIncidentInputSchema,
+  resolveIncidentInputSchema,
+} from "./ops-tool-schemas.js";
+import {
   fetchProviderStatus,
   type FetchImpl,
   type ProviderId,
@@ -14,7 +22,7 @@ export type CreateOpsToolsDeps = {
   fetchImpl?: FetchImpl;
 };
 
-function asObservation(error: unknown): string {
+export function asObservation(error: unknown): string {
   if (error instanceof DomainError) {
     return error.message;
   }
@@ -37,16 +45,8 @@ export function createOpsTools(
     },
     {
       name: "list_alertas",
-      description:
-        "Lista alertas de monitoramento por status. Use quando o plantonista perguntar o que está disparando, o estado dos serviços ou o inventário de alertas. Não use para incidentes formais (use list_incidents) nem para procedimentos (use consultar_runbook).",
-      schema: z.object({
-        status: z
-          .enum(["firing", "resolved", "all"])
-          .default("firing")
-          .describe(
-            'Filtro: "firing" (ativos), "resolved" (encerrados), "all" (todos). Default firing.',
-          ),
-      }),
+      description: LIST_ALERTS_DESCRIPTION,
+      schema: listAlertsInputSchema,
     },
   );
 
@@ -65,18 +65,8 @@ export function createOpsTools(
     },
     {
       name: "open_incident",
-      description:
-        "Abre um incidente formal para um serviço do catálogo. Use após identificar um problema que exige registro (ex. alerta crítico em investigação). Não use só para consultar alertas; se o incidente já existe, use list_incidents ou resolver_incident.",
-      schema: z.object({
-        title: z.string().min(1).describe("Título curto do incidente"),
-        service: z
-          .string()
-          .min(1)
-          .describe("Slug do serviço afetado (ex.: payments, checkout, auth)"),
-        severity: z
-          .enum(["low", "medium", "high", "critical"])
-          .describe("Severidade: low | medium | high | critical"),
-      }),
+      description: OPEN_INCIDENT_DESCRIPTION,
+      schema: openIncidentInputSchema,
     },
   );
 
@@ -91,16 +81,8 @@ export function createOpsTools(
     },
     {
       name: "resolver_incident",
-      description:
-        "Resolve um incidente pelo id numérico. Use quando a mitigação terminou e o incidente deve fechar. Não use para criar incidente novo nem para listar estado.",
-      schema: z.object({
-        id: z.number().int().positive().describe("ID numérico do incidente"),
-        summary: z
-          .string()
-          .min(1)
-          .optional()
-          .describe("Resumo opcional da resolução (o que foi feito)"),
-      }),
+      description: RESOLVE_INCIDENT_DESCRIPTION,
+      schema: resolveIncidentInputSchema,
     },
   );
 

@@ -11,5 +11,10 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/db/sequelize.ts",
+    "src/models/**",
+    "src/services/catalog-seed-service.ts"
+  ]
 }

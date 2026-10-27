@@ -1,29 +1,26 @@
-Referencia para implementação do retorno de status dos provedores de serviços
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+import { SqliteOpsStore } from "../store/sqlite-ops-store.ts";
 
-const statusSchema = z.object({
-    status: z.object({
-        indicator: z.string(),
-        description: z.string(),
-    })
-})
+const store = new SqliteOpsStore();
+const server = new McpServer({
+    name: "OpsPilot",
+    version: "1.0.0",
+});
 
-const STATUS_URL = {
-    github: 'https://githubstatus.com/api/v2/status.json',
-    claudeflare: 'http://claudeflarestatus.com/api/v2/status.json',
-} as const;
+server.registerTool("open_incident", {
+    description: "Abre um novo incidente no OpsPilot. Use quando o usuário relatar um problema em produção ou pedir para registrar/abrir um incidente.",
+    inputSchema: {
+        title: z.string().describe("O título do incidente. Exemplo: 'Serviço X está inoperante'"),
+        service_id: z.string().describe("O ID do serviço afetado (ex: checkout, paymeents)"),
+        severity: z.string().describe("A severidade do incidente"),
+    },
+}, async ({ title, service_id, severity }) => ({
+    content: [{ type: "text", text: JSON.stringify(store.openIncident(title, service_id, severity)) }],
+}));
+// list_alerts e resolve_incident seguem o mesmo padrão
 
-async function fetchProviderStatus(provider: keyof typeof, doFetch = fetch): Promise<string> {
-    for (let attempt = 1; atteempt <= 2; attempt++) {
-        try {
-            const response = await doFetch(STATUS_URL[provider], { signal: AbortSignal.timeout(5000) });
-            if (response.status >= 500) throw new Error(`${provider} status code ${response.status}`);
-            if (!response.ok) return `status page de ${provider} respondeu ${response.status} ${response.statusText}`;
-            const { status } = statusSchema.parse(await response.json());
-            return `${provider} está ${status.indicator} - ${status.description}`;
-        } catch (error) {
-            if (attempt === 2) return `status page de ${provider} não respondeu: ${(error as Error).message}
-            Responda com base nos alertas internos e avise o plantonista da limitação do serviço.`;
-        }
-    }
-    return "unreachable";
-}
+await server.connect(new StdioServerTransport());
+console.log("OpsPilot MCP server is running on stdin/stdout"); //stderr, nunca stdout
+
