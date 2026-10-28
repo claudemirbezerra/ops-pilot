@@ -17,17 +17,19 @@ import {
   type StrategyResult,
   type TraceEvent,
 } from "../agents/strategy.js";
+import {
+  buildContext,
+  resolveContextBudgets,
+} from "../context/context-builder.js";
 import { estimateTokens } from "../context/tokens.js";
 import { ChatTimeoutError } from "../domain/errors.js";
 import type { ConversationStore, MemoryStore } from "../domain/types.js";
 import {
   HISTORY_LIMIT,
   renderHistoryPrompt,
-  renderSummaryPrompt,
   selectHistoryWindow,
 } from "./history-prompt.js";
 import { scheduleLearning } from "./learning-reflector.js";
-import { renderMemoryPrompt } from "./memory-prompt.js";
 
 export type RunChatInput = {
   message: string;
@@ -96,26 +98,40 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
   }
 
   const window = selectHistoryWindow(prior, input.message);
-  const history = renderHistoryPrompt(window);
+  const priorInWindow = window.slice(0, -1);
 
-  let memoryBlock = "";
-  if (input.userId !== undefined) {
-    const recalled = await input.memoryStore.recall(input.userId, input.message);
-    memoryBlock = renderMemoryPrompt(recalled);
-  }
+  const recalled =
+    input.userId !== undefined
+      ? await input.memoryStore.recall(input.userId, input.message)
+      : [];
 
-  let summaryBlock = "";
+  let summaryText = "";
   if (input.conversationId !== undefined) {
     const existing = input.conversationStore.getSummary(input.conversationId);
     if (existing !== null) {
-      summaryBlock = renderSummaryPrompt(existing.text);
+      summaryText = existing.text;
     }
   }
 
-  const parts = [memoryBlock, summaryBlock, history].filter(
-    (part) => part.length > 0,
+  const budgets = resolveContextBudgets(process.env);
+  const built = buildContext(
+    {
+      system: "",
+      message: input.message,
+      summary: summaryText,
+      window: priorInWindow,
+      memory: recalled.map((item) => ({ fact: item.fact, score: item.score })),
+    },
+    budgets,
   );
-  const prompt = parts.join("\n\n");
+  const prompt = built.prompt;
+  const currentLine = renderHistoryPrompt([
+    { role: "user", content: input.message },
+  ]);
+  const historyForBreakdown =
+    built.sections.window.length > 0
+      ? `${built.sections.window}\n${currentLine}`
+      : currentLine;
 
   const runPromise = strategy.run(prompt, {
     maxIterations: DEFAULT_MAX_ITERATIONS,
@@ -200,9 +216,9 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
         ...result.metrics,
         historyMessages: window.length,
         contextBreakdown: {
-          history: estimateTokens(history),
-          memory: estimateTokens(memoryBlock),
-          summary: estimateTokens(summaryBlock),
+          history: estimateTokens(historyForBreakdown),
+          memory: estimateTokens(built.sections.memory),
+          summary: estimateTokens(built.sections.summary),
         },
       },
     };
