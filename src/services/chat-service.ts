@@ -12,6 +12,7 @@ import {
   isBlankInput,
   type StrategyResult,
 } from "../agents/strategy.js";
+import { estimateTokens } from "../context/tokens.js";
 import { ChatTimeoutError } from "../domain/errors.js";
 import type { ConversationStore, MemoryStore } from "../domain/types.js";
 import {
@@ -36,8 +37,16 @@ export type RunChatInput = {
   learningExtractor?: LearningExtractor;
 };
 
+export type ContextBreakdown = {
+  history: number;
+  memory: number;
+};
+
 export type ChatResult = Omit<StrategyResult, "metrics"> & {
-  metrics: StrategyResult["metrics"] & { historyMessages: number };
+  metrics: StrategyResult["metrics"] & {
+    historyMessages: number;
+    contextBreakdown: ContextBreakdown;
+  };
   conversationId?: string;
 };
 
@@ -65,7 +74,12 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
     const empty = buildEmptyInputResult();
     return {
       ...empty,
-      metrics: { ...empty.metrics, historyMessages: 0 },
+      metrics: {
+        ...empty.metrics,
+        historyMessages: 0,
+        promptTokens: 0,
+        contextBreakdown: { history: 0, memory: 0 },
+      },
       ...(input.conversationId !== undefined
         ? { conversationId: input.conversationId }
         : {}),
@@ -75,10 +89,11 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
   const window = selectHistoryWindow(prior, input.message);
   const history = renderHistoryPrompt(window);
 
+  let memoryBlock = "";
   let prompt = history;
   if (input.userId !== undefined) {
     const recalled = await input.memoryStore.recall(input.userId, input.message);
-    const memoryBlock = renderMemoryPrompt(recalled);
+    memoryBlock = renderMemoryPrompt(recalled);
     prompt = memoryBlock ? `${memoryBlock}\n\n${history}` : history;
   }
 
@@ -125,7 +140,14 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
     return {
       ...result,
       conversationId,
-      metrics: { ...result.metrics, historyMessages: window.length },
+      metrics: {
+        ...result.metrics,
+        historyMessages: window.length,
+        contextBreakdown: {
+          history: estimateTokens(history),
+          memory: estimateTokens(memoryBlock),
+        },
+      },
     };
   } finally {
     if (timer !== undefined) {

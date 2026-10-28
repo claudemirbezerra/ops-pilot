@@ -27,7 +27,9 @@ export const reactStrategy: ReasoningStrategy = {
     }
 
     return runWithMetrics(async () => {
-      const { model, getLlmCalls } = createCountingModel(options.maxIterations);
+      const { model, getLlmCalls, getPromptTokens } = createCountingModel(
+        options.maxIterations,
+      );
       const store = options.opsStore ?? createDefaultOpsStore();
       const { tools } = createOpsTools(store, {
         userId: options.userId,
@@ -54,6 +56,7 @@ export const reactStrategy: ReasoningStrategy = {
           trace,
           metrics: {
             llmCalls: getLlmCalls() || countAiMessages(messages),
+            promptTokens: getPromptTokens(),
           },
         };
       } catch (error: unknown) {
@@ -63,7 +66,10 @@ export const reactStrategy: ReasoningStrategy = {
         return {
           answer,
           trace: [{ type: "answer" as const, content: answer }],
-          metrics: { llmCalls: getLlmCalls() },
+          metrics: {
+            llmCalls: getLlmCalls(),
+            promptTokens: getPromptTokens(),
+          },
         };
       }
     });

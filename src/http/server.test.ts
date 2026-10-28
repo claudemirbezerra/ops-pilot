@@ -10,10 +10,16 @@ import {
   type StrategyOptions,
   type StrategyResult,
 } from "../agents/strategy.js";
+import { estimateTokens } from "../context/tokens.js";
 import { ChatTimeoutError } from "../domain/errors.js";
 import type { Embedder } from "../domain/types.js";
 import { SqliteMemoryStore } from "../memory/memory-store.js";
 import { EMBEDDING_DIMS } from "../memory/similarity.js";
+import {
+  renderHistoryPrompt,
+  selectHistoryWindow,
+} from "../services/history-prompt.js";
+import { renderMemoryPrompt } from "../services/memory-prompt.js";
 import { SqliteConversationStore } from "../store/sqlite-conversation-store.js";
 import { createApp } from "./server.js";
 
@@ -54,6 +60,7 @@ function makeFake(
   name: "react" | "plan-and-execute",
   calls: CallLog[],
   answerPrefix = name,
+  promptTokens = 0,
 ): ReasoningStrategy {
   return {
     name,
@@ -63,7 +70,7 @@ function makeFake(
       return {
         answer,
         trace: [{ type: "answer", content: answer }],
-        metrics: { llmCalls: 0, latencyMs: 1 },
+        metrics: { llmCalls: 0, latencyMs: 1, promptTokens },
       };
     },
   };
@@ -82,7 +89,7 @@ function approvingCritic(calls: { count: number }): Critic {
   return {
     async evaluate() {
       calls.count += 1;
-      return { approved: true, feedback: "ok", llmCalls: 0 };
+      return { approved: true, feedback: "ok", llmCalls: 0, promptTokens: 0 };
     },
   };
 }
@@ -960,6 +967,119 @@ test("learning remember rejection still returns 200", async () => {
     await flushLearning();
   } finally {
     memory.remember = originalRemember;
+    await closeServer(started.server);
+  }
+});
+
+test("200 metrics include promptTokens and contextBreakdown", async () => {
+  const calls: CallLog[] = [];
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls, "react", 99),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
+      learningExtractor: silentLearning,
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, { message: "listar alertas" });
+    assert.equal(result.status, 200);
+    const metrics = result.json.metrics as {
+      llmCalls: number;
+      latencyMs: number;
+      historyMessages: number;
+      promptTokens: number;
+      contextBreakdown: { history: number; memory: number };
+    };
+    assert.equal(metrics.promptTokens, 99);
+    assert.equal(typeof metrics.llmCalls, "number");
+    assert.equal(typeof metrics.latencyMs, "number");
+    assert.equal(typeof metrics.historyMessages, "number");
+    assert.equal(typeof metrics.contextBreakdown.history, "number");
+    assert.equal(typeof metrics.contextBreakdown.memory, "number");
+    assert.equal(metrics.contextBreakdown.memory, 0);
+    assert.ok(metrics.contextBreakdown.history > 0);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("blank message reports zero promptTokens and zero breakdown", async () => {
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", []),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, { message: "   " });
+    assert.equal(result.status, 200);
+    const metrics = result.json.metrics as {
+      promptTokens: number;
+      contextBreakdown: { history: number; memory: number };
+    };
+    assert.equal(metrics.promptTokens, 0);
+    assert.deepEqual(metrics.contextBreakdown, { history: 0, memory: 0 });
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("contextBreakdown.memory matches estimateTokens of recall block", async () => {
+  const calls: CallLog[] = [];
+  const fact = "o cluster de pagamentos é o azul";
+  const memory = fakeMemoryStore({
+    [fact]: unitAt(8),
+    "qual cor?": unitAt(8),
+  });
+  await memory.remember("plantonista-42", fact);
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: memory,
+      learningExtractor: silentLearning,
+    }),
+  );
+
+  try {
+    const withMemory = await postJson(started.baseUrl, {
+      message: "qual cor?",
+      userId: "plantonista-42",
+    });
+    assert.equal(withMemory.status, 200);
+    const metrics = withMemory.json.metrics as {
+      contextBreakdown: { history: number; memory: number };
+    };
+    const expectedMemory = estimateTokens(
+      renderMemoryPrompt([{ fact }]),
+    );
+    const expectedHistory = estimateTokens(
+      renderHistoryPrompt(selectHistoryWindow([], "qual cor?")),
+    );
+    assert.equal(metrics.contextBreakdown.memory, expectedMemory);
+    assert.equal(metrics.contextBreakdown.history, expectedHistory);
+    assert.ok(expectedMemory > 0);
+
+    const withoutUser = await postJson(started.baseUrl, { message: "listar" });
+    assert.equal(withoutUser.status, 200);
+    const bare = withoutUser.json.metrics as {
+      contextBreakdown: { history: number; memory: number };
+    };
+    assert.equal(bare.contextBreakdown.memory, 0);
+  } finally {
     await closeServer(started.server);
   }
 });

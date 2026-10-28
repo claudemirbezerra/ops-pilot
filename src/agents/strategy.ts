@@ -21,6 +21,8 @@ export type TraceEvent =
 export type Metrics = {
   llmCalls: number;
   latencyMs: number;
+  /** Soma real de prompt tokens das chamadas ao modelo neste resultado. */
+  promptTokens: number;
 };
 
 export type StrategyResult = {
@@ -71,7 +73,7 @@ export function buildEmptyInputResult(): StrategyResult {
   return {
     answer: EMPTY_INPUT_ANSWER,
     trace: [{ type: "answer", content: EMPTY_INPUT_ANSWER }],
-    metrics: { llmCalls: 0, latencyMs: 0 },
+    metrics: { llmCalls: 0, latencyMs: 0, promptTokens: 0 },
   };
 }
 
@@ -90,6 +92,7 @@ export async function runWithMetrics(
     metrics: {
       llmCalls: result.metrics?.llmCalls ?? 0,
       latencyMs: result.metrics?.latencyMs ?? Date.now() - started,
+      promptTokens: result.metrics?.promptTokens ?? 0,
     },
   };
 }

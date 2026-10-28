@@ -84,6 +84,7 @@ export function wrapWithReflection({
       let originalInput = input;
       let accumulatedTrace: TraceEvent[] = [];
       let llmCalls = 0;
+      let promptTokens = 0;
       let lastAnswer = "";
 
       while (true) {
@@ -91,6 +92,7 @@ export function wrapWithReflection({
           maxIterations: options.maxIterations,
         });
         llmCalls += baseResult.metrics.llmCalls;
+        promptTokens += baseResult.metrics.promptTokens;
         accumulatedTrace = [...accumulatedTrace, ...baseResult.trace];
         lastAnswer = baseResult.answer;
 
@@ -101,6 +103,7 @@ export function wrapWithReflection({
             metrics: {
               llmCalls,
               latencyMs: Date.now() - started,
+              promptTokens,
             },
           };
         }
@@ -113,6 +116,7 @@ export function wrapWithReflection({
             observations: extractObservations(baseResult.trace),
           });
           llmCalls += evaluated.llmCalls;
+          promptTokens += evaluated.promptTokens;
           decision = {
             approved: evaluated.approved,
             feedback: evaluated.feedback,
@@ -132,6 +136,7 @@ export function wrapWithReflection({
             metrics: {
               llmCalls,
               latencyMs: Date.now() - started,
+              promptTokens,
             },
           };
         }
@@ -143,6 +148,7 @@ export function wrapWithReflection({
             metrics: {
               llmCalls,
               latencyMs: Date.now() - started,
+              promptTokens,
             },
           };
         }
@@ -154,6 +160,7 @@ export function wrapWithReflection({
             metrics: {
               llmCalls,
               latencyMs: Date.now() - started,
+              promptTokens,
             },
           };
         }

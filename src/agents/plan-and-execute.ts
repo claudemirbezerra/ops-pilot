@@ -2,6 +2,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import { z } from "zod";
 
+import { readPromptTokens } from "../context/tokens.js";
 import type { MemoryStore } from "../domain/types.js";
 import { createModel } from "./model.js";
 import {
@@ -66,6 +67,7 @@ const PEState = Annotation.Root({
   maxIterations: Annotation<number>,
   trace: Annotation<TraceEvent[]>,
   llmCalls: Annotation<number>,
+  promptTokens: Annotation<number>,
 });
 
 type PEStateType = typeof PEState.State;
@@ -195,6 +197,7 @@ function createPlanExecuteGraph(
       plan: remaining,
       done: [[step, resultText]],
       llmCalls: state.llmCalls + 1,
+      promptTokens: state.promptTokens + readPromptTokens(ai),
       trace: [...state.trace, ...events],
     };
   }
@@ -340,6 +343,7 @@ export const planAndExecuteStrategy: ReasoningStrategy = {
             maxIterations: options.maxIterations,
             trace: [],
             llmCalls: 0,
+            promptTokens: 0,
           },
           {
             // planner + (executor+replanner)*N — corta grafo se o replanner oscilar
@@ -359,7 +363,10 @@ export const planAndExecuteStrategy: ReasoningStrategy = {
         return {
           answer,
           trace: ensureAnswerEvent(finalState.trace, answer),
-          metrics: { llmCalls: finalState.llmCalls },
+          metrics: {
+            llmCalls: finalState.llmCalls,
+            promptTokens: finalState.promptTokens,
+          },
         };
       } catch (error: unknown) {
         const detail = error instanceof Error ? error.message : "erro desconhecido";
@@ -367,7 +374,7 @@ export const planAndExecuteStrategy: ReasoningStrategy = {
         return {
           answer,
           trace: [{ type: "answer" as const, content: answer }],
-          metrics: { llmCalls: 0 },
+          metrics: { llmCalls: 0, promptTokens: 0 },
         };
       }
     });

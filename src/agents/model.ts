@@ -1,6 +1,7 @@
 import { AIMessage } from "@langchain/core/messages";
 import { ChatOpenAI, type ChatOpenAIFields } from "@langchain/openai";
 
+import { readPromptTokens } from "../context/tokens.js";
 import { MissingModelConfigError } from "../domain/errors.js";
 import { buildLimitReachedAnswer } from "./strategy.js";
 
@@ -47,6 +48,7 @@ export function createModel(env: ModelEnv = process.env): ChatOpenAI {
 export type LimitedModel = {
   model: ChatOpenAI;
   getLlmCalls: () => number;
+  getPromptTokens: () => number;
 };
 
 /** ChatOpenAI that counts real invokes and stops after maxIterations. */
@@ -56,6 +58,7 @@ export function createCountingModel(
 ): LimitedModel {
   const { apiKey, model } = readModelConfig(env);
   let llmCalls = 0;
+  let promptTokens = 0;
   const limitMessage = buildLimitReachedAnswer(maxIterations);
 
   class CountingChatOpenAI extends ChatOpenAI {
@@ -68,12 +71,15 @@ export function createCountingModel(
       }
 
       llmCalls += 1;
-      return super.invoke(input, options);
+      const result = await super.invoke(input, options);
+      promptTokens += readPromptTokens(result);
+      return result;
     }
   }
 
   return {
     model: new CountingChatOpenAI(openRouterFields(apiKey, model)),
     getLlmCalls: () => llmCalls,
+    getPromptTokens: () => promptTokens,
   };
 }

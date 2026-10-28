@@ -28,7 +28,7 @@ function mockBase(handler: (input: string) => Promise<StrategyResult>): Reasonin
 function approvingCritic(): Critic {
   return {
     async evaluate() {
-      return { approved: true, feedback: "ok", llmCalls: 0 };
+      return { approved: true, feedback: "ok", llmCalls: 0, promptTokens: 0 };
     },
   };
 }
@@ -36,7 +36,7 @@ function approvingCritic(): Critic {
 function alwaysRejectCritic(feedback = "corrija a severidade"): Critic {
   return {
     async evaluate() {
-      return { approved: false, feedback, llmCalls: 1 };
+      return { approved: false, feedback, llmCalls: 1, promptTokens: 0 };
     },
   };
 }
@@ -47,7 +47,7 @@ function countingRejectCritic(): { critic: Critic; calls: () => number } {
     critic: {
       async evaluate() {
         calls += 1;
-        return { approved: false, feedback: "ainda incompleto", llmCalls: 1 };
+        return { approved: false, feedback: "ainda incompleto", llmCalls: 1, promptTokens: 0 };
       },
     },
     calls: () => calls,
@@ -81,7 +81,7 @@ test("US1: approving critic yields critique then final answer; blank skips criti
   const critic: Critic = {
     async evaluate() {
       criticCalls += 1;
-      return { approved: true, feedback: "bom", llmCalls: 0 };
+      return { approved: true, feedback: "bom", llmCalls: 0, promptTokens: 0 };
     },
   };
   const base = mockBase(async () => ({
@@ -90,7 +90,7 @@ test("US1: approving critic yields critique then final answer; blank skips criti
       { type: "observation", content: "firing=3" },
       { type: "answer", content: "3 alertas em disparo" },
     ],
-    metrics: { llmCalls: 2, latencyMs: 5 },
+    metrics: { llmCalls: 2, latencyMs: 5, promptTokens: 0 },
   }));
 
   const wrapped = wrapWithReflection({
@@ -127,7 +127,7 @@ test("US2: always-reject with maxReflections 2 caps regenerations; empty feedbac
     return {
       answer: `tentativa-${baseRuns}`,
       trace: [{ type: "answer", content: `tentativa-${baseRuns}` }],
-      metrics: { llmCalls: 1, latencyMs: 1 },
+      metrics: { llmCalls: 1, latencyMs: 1, promptTokens: 0 },
     };
   });
 
@@ -151,7 +151,7 @@ test("US2: always-reject with maxReflections 2 caps regenerations; empty feedbac
   const emptyFeedbackBaseRuns = { n: 0 };
   const emptyFeedbackCritic: Critic = {
     async evaluate() {
-      return { approved: false, feedback: "   ", llmCalls: 0 };
+      return { approved: false, feedback: "   ", llmCalls: 0, promptTokens: 0 };
     },
   };
   const emptyFeedbackWrapped = wrapWithReflection({
@@ -163,7 +163,7 @@ test("US2: always-reject with maxReflections 2 caps regenerations; empty feedbac
       return {
         answer: `e-${emptyFeedbackBaseRuns.n}`,
         trace: [{ type: "answer", content: `e-${emptyFeedbackBaseRuns.n}` }],
-        metrics: { llmCalls: 0, latencyMs: 0 },
+        metrics: { llmCalls: 0, latencyMs: 0, promptTokens: 0 },
       };
     }),
     critic: emptyFeedbackCritic,
@@ -179,7 +179,7 @@ test("US2: always-reject with maxReflections 2 caps regenerations; empty feedbac
       return {
         answer: "ok",
         trace: [{ type: "answer", content: "ok" }],
-        metrics: { llmCalls: 0, latencyMs: 0 },
+        metrics: { llmCalls: 0, latencyMs: 0, promptTokens: 0 },
       };
     }),
     critic: approvingCritic(),
@@ -194,7 +194,7 @@ test("US2: critic unavailable keeps last base answer with critique note", async 
     base: mockBase(async () => ({
       answer: "base-ok",
       trace: [{ type: "answer", content: "base-ok" }],
-      metrics: { llmCalls: 1, latencyMs: 1 },
+      metrics: { llmCalls: 1, latencyMs: 1, promptTokens: 0 },
     })),
     critic: {
       async evaluate() {
@@ -216,12 +216,12 @@ test("US2: base model unavailable skips inventing critique", async () => {
     base: mockBase(async () => ({
       answer: MODEL_UNAVAILABLE_ANSWER,
       trace: [{ type: "answer", content: MODEL_UNAVAILABLE_ANSWER }],
-      metrics: { llmCalls: 0, latencyMs: 1 },
+      metrics: { llmCalls: 0, latencyMs: 1, promptTokens: 0 },
     })),
     critic: {
       async evaluate() {
         criticCalls += 1;
-        return { approved: true, feedback: "", llmCalls: 0 };
+        return { approved: true, feedback: "", llmCalls: 0, promptTokens: 0 };
       },
     },
     name: "reflect:react",
@@ -240,7 +240,7 @@ test("US3: llmCalls sum base + critic; latencyMs covers full cycle", async () =>
       return {
         answer: "a",
         trace: [{ type: "answer", content: "a" }],
-        metrics: { llmCalls: 2, latencyMs: 1 },
+        metrics: { llmCalls: 2, latencyMs: 1, promptTokens: 0 },
       };
     }),
     critic: alwaysRejectCritic(),
@@ -251,6 +251,31 @@ test("US3: llmCalls sum base + critic; latencyMs covers full cycle", async () =>
   // 2 base runs * 2 llmCalls + 2 critic evaluates * 1 = 6
   assert.equal(result.metrics.llmCalls, 2 * 2 + 2 * 1);
   assert.ok(result.metrics.latencyMs >= 5);
+});
+
+test("promptTokens sum base + critic", async () => {
+  const critic: Critic = {
+    async evaluate() {
+      return {
+        approved: true,
+        feedback: "ok",
+        llmCalls: 1,
+        promptTokens: 2,
+      };
+    },
+  };
+  const wrapped = wrapWithReflection({
+    base: mockBase(async () => ({
+      answer: "a",
+      trace: [{ type: "answer", content: "a" }],
+      metrics: { llmCalls: 1, latencyMs: 1, promptTokens: 3 },
+    })),
+    critic,
+    name: "reflect:react",
+  });
+
+  const result = await wrapped.run("pedido", { maxIterations: 2, maxReflections: 1 });
+  assert.equal(result.metrics.promptTokens, 5);
 });
 
 test("US5: offline always-reject twice yields identical formatTrace and stop rule", async () => {
@@ -265,7 +290,7 @@ test("US5: offline always-reject twice yields identical formatTrace and stop rul
             { type: "observation", content: `obs-${n}` },
             { type: "answer", content: `r${n}` },
           ],
-          metrics: { llmCalls: 1, latencyMs: 0 },
+          metrics: { llmCalls: 1, latencyMs: 0, promptTokens: 0 },
         };
       }),
       critic: alwaysRejectCritic("faltou resolver"),

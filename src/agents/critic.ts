@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { readPromptTokens } from "../context/tokens.js";
 import { createModel } from "./model.js";
 import type { TraceEvent } from "./strategy.js";
 
@@ -17,6 +18,8 @@ export type CriticEvaluateInput = {
 export type CriticEvaluateResult = CritiqueDecision & {
   /** Real model calls for this evaluation (0 for stubs). */
   llmCalls: number;
+  /** Prompt tokens da avaliação (0 em stub ou sem usage). */
+  promptTokens: number;
 };
 
 export type Critic = {
@@ -82,6 +85,7 @@ export function createLlmCritic(): Critic {
         approved: decision.approved,
         feedback: decision.feedback ?? "",
         llmCalls: 1,
+        promptTokens: readPromptTokens(decision),
       };
     },
   };

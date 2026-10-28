@@ -24,8 +24,8 @@
 
 **Purpose**: Esqueleto `src/context/` e shells de teste (plan.md / research Decisão 1) sem alterar `/chat` ainda
 
-- [ ] T001 [P] Create `src/context/tokens.ts` exporting stubs `estimateTokens(text: string): number` and `readPromptTokens(source: unknown): number` that throw `Error("not implemented")`
-- [ ] T002 [P] Create `src/context/tokens.test.ts` with `node:test` + `node:assert/strict` importing the stubs (single `test.todo` or failing placeholder OK)
+- [X] T001 [P] Create `src/context/tokens.ts` exporting stubs `estimateTokens(text: string): number` and `readPromptTokens(source: unknown): number` that throw `Error("not implemented")`
+- [X] T002 [P] Create `src/context/tokens.test.ts` with `node:test` + `node:assert/strict` importing the stubs (single `test.todo` or failing placeholder OK)
 
 **Checkpoint**: Módulo de contexto existe e typecheck do arquivo novo não quebra o restante
 
@@ -37,9 +37,9 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Extend `Metrics` in `src/agents/strategy.ts` with `promptTokens: number`; update `buildEmptyInputResult` to `promptTokens: 0`; update `runWithMetrics` to set `promptTokens: result.metrics?.promptTokens ?? 0` alongside `llmCalls` / `latencyMs`
-- [ ] T004 [P] Fix compile fallout from T003: any literal `metrics: { llmCalls, latencyMs }` in `src/agents/` (react, plan-and-execute, reflection, strategy tests, arena/bench if they construct Metrics) must include `promptTokens` (usually `0` or summed value) until US2 fills real accumulation
-- [ ] T005 Run `npm run typecheck` until green after T003–T004
+- [X] T003 Extend `Metrics` in `src/agents/strategy.ts` with `promptTokens: number`; update `buildEmptyInputResult` to `promptTokens: 0`; update `runWithMetrics` to set `promptTokens: result.metrics?.promptTokens ?? 0` alongside `llmCalls` / `latencyMs`
+- [X] T004 [P] Fix compile fallout from T003: any literal `metrics: { llmCalls, latencyMs }` in `src/agents/` (react, plan-and-execute, reflection, strategy tests, arena/bench if they construct Metrics) must include `promptTokens` (usually `0` or summed value) until US2 fills real accumulation
+- [X] T005 Run `npm run typecheck` until green after T003–T004
 
 **Checkpoint**: Foundation tipada — US1 pode implementar funções puras; US2 pode acumular usage
 
@@ -55,14 +55,14 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T006 [P] [US1] In `src/context/tokens.test.ts`, add `estimateTokens` cases per `contracts/tokens.md`: `""` → `0`; length 1–3 → `0`; `"abcd"` → `1`; `"abcde"` → `1`; `"abcdefgh"` → `2`; assert spaces count (no trim)
-- [ ] T007 [P] [US1] In `src/context/tokens.test.ts`, add `readPromptTokens` cases: `{ usage_metadata: { input_tokens: 42 } }` → `42`; AIMessage-like `{ usage_metadata: { input_tokens: 7 } }` → `7`; `{ response_metadata: { tokenUsage: { prompt_tokens: 10 } } }` → `10`; `{ response_metadata: { tokenUsage: { promptTokens: 11 } } }` → `11`; `undefined` / `{}` / `{ usage_metadata: { output_tokens: 5 } }` (só completion) → `0`; negative/`NaN` → `0`
+- [X] T006 [P] [US1] In `src/context/tokens.test.ts`, add `estimateTokens` cases per `contracts/tokens.md`: `""` → `0`; length 1–3 → `0`; `"abcd"` → `1`; `"abcde"` → `1`; `"abcdefgh"` → `2`; assert spaces count (no trim)
+- [X] T007 [P] [US1] In `src/context/tokens.test.ts`, add `readPromptTokens` cases: `{ usage_metadata: { input_tokens: 42 } }` → `42`; AIMessage-like `{ usage_metadata: { input_tokens: 7 } }` → `7`; `{ response_metadata: { tokenUsage: { prompt_tokens: 10 } } }` → `10`; `{ response_metadata: { tokenUsage: { promptTokens: 11 } } }` → `11`; `undefined` / `{}` / `{ usage_metadata: { output_tokens: 5 } }` (só completion) → `0`; negative/`NaN` → `0`
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Implement `estimateTokens` in `src/context/tokens.ts` as `Math.floor(text.length / 4)` (never throws)
-- [ ] T009 [US1] Implement `readPromptTokens` in `src/context/tokens.ts` per `contracts/tokens.md` priority: `usage_metadata.input_tokens` → `tokenUsage.prompt_tokens|promptTokens` → direct `input_tokens|prompt_tokens|promptTokens` → `0`; never throws
-- [ ] T010 [US1] Run `npm test -- src/context/tokens.test.ts` and `npm run typecheck` until green
+- [X] T008 [US1] Implement `estimateTokens` in `src/context/tokens.ts` as `Math.floor(text.length / 4)` (never throws)
+- [X] T009 [US1] Implement `readPromptTokens` in `src/context/tokens.ts` per `contracts/tokens.md` priority: `usage_metadata.input_tokens` → `tokenUsage.prompt_tokens|promptTokens` → direct `input_tokens|prompt_tokens|promptTokens` → `0`; never throws
+- [X] T010 [US1] Run `npm test -- src/context/tokens.test.ts` and `npm run typecheck` until green
 
 **Checkpoint**: MVP utilitário — estimativa e leitura de usage conferíveis
 
@@ -78,21 +78,21 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T011 [P] [US2] In `src/http/server.test.ts`, add case: fake strategy returns `metrics.promptTokens: 99` (plus existing llmCalls/latencyMs); POST `/chat` valid → 200 with `metrics.promptTokens === 99`, `contextBreakdown.history` / `.memory` present as numbers, and `llmCalls`/`latencyMs`/`historyMessages` still present
-- [ ] T012 [P] [US2] In `src/http/server.test.ts`, add case: blank message → `promptTokens === 0` and `contextBreakdown: { history: 0, memory: 0 }`
-- [ ] T013 [P] [US2] In `src/http/server.test.ts`, add case: `userId` + memoryStore fake with known recall facts → `contextBreakdown.memory === estimateTokens(renderMemoryPrompt(facts))` and `contextBreakdown.history === estimateTokens` of the history string; without `userId` → `memory === 0`
-- [ ] T014 [P] [US2] In `src/agents/strategy.test.ts` (or model-focused test), add/adjust case that `runWithMetrics` preserves a non-zero `promptTokens` from work; if adding `createCountingModel` unit hook is cleaner, put accumulation assert in a small test next to `src/agents/model.ts` usage patterns already covered by strategy tests
+- [X] T011 [P] [US2] In `src/http/server.test.ts`, add case: fake strategy returns `metrics.promptTokens: 99` (plus existing llmCalls/latencyMs); POST `/chat` valid → 200 with `metrics.promptTokens === 99`, `contextBreakdown.history` / `.memory` present as numbers, and `llmCalls`/`latencyMs`/`historyMessages` still present
+- [X] T012 [P] [US2] In `src/http/server.test.ts`, add case: blank message → `promptTokens === 0` and `contextBreakdown: { history: 0, memory: 0 }`
+- [X] T013 [P] [US2] In `src/http/server.test.ts`, add case: `userId` + memoryStore fake with known recall facts → `contextBreakdown.memory === estimateTokens(renderMemoryPrompt(facts))` and `contextBreakdown.history === estimateTokens` of the history string; without `userId` → `memory === 0`
+- [X] T014 [P] [US2] In `src/agents/strategy.test.ts` (or model-focused test), add/adjust case that `runWithMetrics` preserves a non-zero `promptTokens` from work; if adding `createCountingModel` unit hook is cleaner, put accumulation assert in a small test next to `src/agents/model.ts` usage patterns already covered by strategy tests
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] In `src/agents/model.ts`, extend `createCountingModel` / `LimitedModel` with `getPromptTokens(): number`; after each successful `super.invoke`, add `readPromptTokens(result)` to an internal accumulator (import from `src/context/tokens.ts`)
-- [ ] T016 [US2] In `src/agents/react.ts`, return `metrics.promptTokens: getPromptTokens()` (0 on empty-input path already via `buildEmptyInputResult`); on catch path still report accumulated promptTokens so far
-- [ ] T017 [US2] In `src/agents/plan-and-execute.ts`, accumulate prompt tokens across model invokes (prefer counting-model getter if used; else `readPromptTokens` on AIMessage results) and include `promptTokens` in returned `metrics` (including early/error paths that already set `llmCalls`)
-- [ ] T018 [US2] Extend `CriticEvaluateResult` in `src/agents/critic.ts` with `promptTokens: number`; stubs/tests return `0`; LLM critic sets value via `readPromptTokens` when available else `0`
-- [ ] T019 [US2] In `src/agents/reflection.ts`, sum `promptTokens` from base results + critic evaluations the same way `llmCalls` is summed; include in every return `metrics` object
-- [ ] T020 [US2] Extend `ChatResult` metrics in `src/services/chat-service.ts` with `promptTokens` and `contextBreakdown: { history: number; memory: number }`; after building `history` and `memoryBlock`, set breakdown via `estimateTokens`; on success merge `result.metrics.promptTokens`; blank-input path → `promptTokens: 0`, breakdown zeros; do **not** include learning-reflector (009) usage
-- [ ] T021 [US2] Confirm `src/http/server.ts` still serializes `result.metrics` as-is (no omit of new fields); adjust only if something strips unknown keys
-- [ ] T022 [US2] Run US2 HTTP/strategy tests + `npm run typecheck` until green
+- [X] T015 [US2] In `src/agents/model.ts`, extend `createCountingModel` / `LimitedModel` with `getPromptTokens(): number`; after each successful `super.invoke`, add `readPromptTokens(result)` to an internal accumulator (import from `src/context/tokens.ts`)
+- [X] T016 [US2] In `src/agents/react.ts`, return `metrics.promptTokens: getPromptTokens()` (0 on empty-input path already via `buildEmptyInputResult`); on catch path still report accumulated promptTokens so far
+- [X] T017 [US2] In `src/agents/plan-and-execute.ts`, accumulate prompt tokens across model invokes (prefer counting-model getter if used; else `readPromptTokens` on AIMessage results) and include `promptTokens` in returned `metrics` (including early/error paths that already set `llmCalls`)
+- [X] T018 [US2] Extend `CriticEvaluateResult` in `src/agents/critic.ts` with `promptTokens: number`; stubs/tests return `0`; LLM critic sets value via `readPromptTokens` when available else `0`
+- [X] T019 [US2] In `src/agents/reflection.ts`, sum `promptTokens` from base results + critic evaluations the same way `llmCalls` is summed; include in every return `metrics` object
+- [X] T020 [US2] Extend `ChatResult` metrics in `src/services/chat-service.ts` with `promptTokens` and `contextBreakdown: { history: number; memory: number }`; after building `history` and `memoryBlock`, set breakdown via `estimateTokens`; on success merge `result.metrics.promptTokens`; blank-input path → `promptTokens: 0`, breakdown zeros; do **not** include learning-reflector (009) usage
+- [X] T021 [US2] Confirm `src/http/server.ts` still serializes `result.metrics` as-is (no omit of new fields); adjust only if something strips unknown keys
+- [X] T022 [US2] Run US2 HTTP/strategy tests + `npm run typecheck` until green
 
 **Checkpoint**: `/chat` observa promptTokens real e breakdown estimado por fonte
 
@@ -108,12 +108,12 @@
 
 > Script é smoke manual (contracts/conversa-longa.md). Validação automatizada = checklist de contrato no próprio shell + quickstart; sem servidor na CI.
 
-- [ ] T023 [P] [US3] Document expected env defaults in script header comments: `BASE_URL` default `http://127.0.0.1:3000`, `TURNS` default ≥ 2, per `contracts/conversa-longa.md`
+- [X] T023 [P] [US3] Document expected env defaults in script header comments: `BASE_URL` default `http://127.0.0.1:3000`, `TURNS` default ≥ 2, per `contracts/conversa-longa.md`
 
 ### Implementation for User Story 3
 
-- [ ] T024 [US3] Create `conversa-longa.sh` at repo root: `set -euo pipefail`; loop `TURNS` POSTs to `$BASE_URL/chat` with JSON `message`; capture `conversationId` after first 200 and reuse; on each 200 print one line `turn=<i> promptTokens=<n>` from `metrics.promptTokens` (jq or python/node one-liner OK); on non-200/curl fail print to stderr and `exit 1` without erasing prior lines; `chmod +x` where applicable
-- [ ] T025 [US3] Manually smoke once against local `npm run dev` (or note in PR if env lacks model — script must still print numeric `promptTokens`, even if 0) and fix parsing until output matches contract
+- [X] T024 [US3] Create `conversa-longa.sh` at repo root: `set -euo pipefail`; loop `TURNS` POSTs to `$BASE_URL/chat` with JSON `message`; capture `conversationId` after first 200 and reuse; on each 200 print one line `turn=<i> promptTokens=<n>` from `metrics.promptTokens` (jq or python/node one-liner OK); on non-200/curl fail print to stderr and `exit 1` without erasing prior lines; `chmod +x` where applicable
+- [X] T025 [US3] Manually smoke once against local `npm run dev` (or note in PR if env lacks model — script must still print numeric `promptTokens`, even if 0) and fix parsing until output matches contract
 
 **Checkpoint**: Ensaio de conversa longa observável por turno
 
@@ -129,13 +129,13 @@
 
 > **NOTE: Fill gaps from quickstart table; prefer FAIL-first if a case is still missing**
 
-- [ ] T026 [P] [US4] In `src/agents/reflection.test.ts`, add case: base `promptTokens: 3` + critic stub `promptTokens: 2` → wrap result `metrics.promptTokens === 5` (mirror existing llmCalls sum test)
-- [ ] T027 [P] [US4] Audit `src/http/server.test.ts` / chat cases for regressions: 4xx/504 still omit metrics; existing `historyMessages` asserts still pass with new fields present on 200
+- [X] T026 [P] [US4] In `src/agents/reflection.test.ts`, add case: base `promptTokens: 3` + critic stub `promptTokens: 2` → wrap result `metrics.promptTokens === 5` (mirror existing llmCalls sum test)
+- [X] T027 [P] [US4] Audit `src/http/server.test.ts` / chat cases for regressions: 4xx/504 still omit metrics; existing `historyMessages` asserts still pass with new fields present on 200
 
 ### Implementation for User Story 4
 
-- [ ] T028 [US4] Fix any remaining stub critics / fake strategies in tests under `src/` that omit `promptTokens` so the full suite compiles and asserts
-- [ ] T029 [US4] Run full `npm test` and `npm run typecheck` until green (SC-006)
+- [X] T028 [US4] Fix any remaining stub critics / fake strategies in tests under `src/` that omit `promptTokens` so the full suite compiles and asserts
+- [X] T029 [US4] Run full `npm test` and `npm run typecheck` until green (SC-006)
 
 **Checkpoint**: Conferência automatizada completa e verde
 
@@ -145,9 +145,9 @@
 
 **Purpose**: Alinhamento final com quickstart e limpeza
 
-- [ ] T030 [P] Skim `specs/010-medicao-contexto/quickstart.md` checklist rows 1–11 against implemented tests; add any missing assert called out there into the nearest existing `*.test.ts`
-- [ ] T031 Confirm arena/bench still typecheck if they construct metrics (extra `promptTokens: 0` only — no requirement to print breakdown)
-- [ ] T032 Final `npm test` + `npm run typecheck` green
+- [X] T030 [P] Skim `specs/010-medicao-contexto/quickstart.md` checklist rows 1–11 against implemented tests; add any missing assert called out there into the nearest existing `*.test.ts`
+- [X] T031 Confirm arena/bench still typecheck if they construct metrics (extra `promptTokens: 0` only — no requirement to print breakdown)
+- [X] T032 Final `npm test` + `npm run typecheck` green
 
 ---
 
