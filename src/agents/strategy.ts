@@ -16,7 +16,8 @@ export type TraceEvent =
   | { type: "observation"; content: string }
   | { type: "plan"; steps: string[] }
   | { type: "critique"; content: string }
-  | { type: "answer"; content: string };
+  | { type: "answer"; content: string }
+  | { type: "summarize"; content: string };
 
 export type Metrics = {
   llmCalls: number;

@@ -5,6 +5,7 @@ import type { ConversationMessage } from "../domain/types.js";
 import {
   HISTORY_LIMIT,
   renderHistoryPrompt,
+  renderSummaryPrompt,
   selectHistoryWindow,
 } from "./history-prompt.js";
 
@@ -27,18 +28,30 @@ test("two prior messages plus the current one stay in order", () => {
   );
 });
 
-test("twelve prior messages drop the oldest when the current one arrives", () => {
-  const prior: ConversationMessage[] = Array.from({ length: 12 }, (_, index) => ({
+test("eight prior messages drop the oldest when the current one arrives", () => {
+  const prior: ConversationMessage[] = Array.from({ length: 8 }, (_, index) => ({
     role: index % 2 === 0 ? "user" : "assistant",
     content: `m${index}`,
   }));
   const window = selectHistoryWindow(prior, "novo");
-  assert.equal(HISTORY_LIMIT, 12);
-  assert.equal(window.length, 12);
+  assert.equal(HISTORY_LIMIT, 8);
+  assert.equal(window.length, 8);
   assert.equal(window[0]?.content, "m1");
   assert.deepEqual(window.at(-1), { role: "user", content: "novo" });
   assert.equal(
     window.some((message) => message.content === "m0"),
     false,
+  );
+});
+
+test("renderSummaryPrompt returns empty for blank text", () => {
+  assert.equal(renderSummaryPrompt(""), "");
+  assert.equal(renderSummaryPrompt("   "), "");
+});
+
+test("renderSummaryPrompt prefixes non-empty text", () => {
+  assert.equal(
+    renderSummaryPrompt("  decisão: abrir INC-1  "),
+    "Resumo da conversa:\ndecisão: abrir INC-1",
   );
 });

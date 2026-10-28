@@ -129,3 +129,54 @@ test("CHECK rejeita role fora de user e assistant", () => {
       .run(id, "plantonista", "oi", Date.now());
   });
 });
+
+test("getSummary é null até upsert; upsert substitui e isola conversas", () => {
+  const store = memoryStore();
+  const first = store.create();
+  const second = store.create();
+  assert.equal(store.getSummary(first), null);
+
+  store.append(first, { role: "user", content: "a" });
+  store.append(first, { role: "assistant", content: "b" });
+  const messages = store.lastMessages(first, 10);
+  assert.equal(messages.length, 2);
+
+  store.upsertSummary(first, "resumo-1", 2);
+  assert.deepEqual(store.getSummary(first), {
+    text: "resumo-1",
+    coveredThroughId: 2,
+  });
+  assert.equal(store.getSummary(second), null);
+
+  store.upsertSummary(first, "resumo-2", 2);
+  assert.equal(store.getSummary(first)?.text, "resumo-2");
+
+  assert.throws(
+    () => store.upsertSummary(first, "   ", 2),
+    InvalidConversationMessageError,
+  );
+  assert.throws(
+    () => store.getSummary("ausente"),
+    ConversationNotFoundError,
+  );
+});
+
+test("listUnsummarizedOutsideWindow devolve só egressos além do cursor e fora da janela", () => {
+  const store = memoryStore();
+  const id = store.create();
+  for (let index = 0; index < 12; index += 1) {
+    store.append(id, {
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: `m${index}`,
+    });
+  }
+
+  const pending = store.listUnsummarizedOutsideWindow(id, 8, 0);
+  assert.equal(pending.length, 4);
+  assert.equal(pending[0]?.content, "m0");
+  assert.equal(pending.at(-1)?.content, "m3");
+
+  const afterCover = store.listUnsummarizedOutsideWindow(id, 8, 2);
+  assert.equal(afterCover[0]?.content, "m2");
+  assert.deepEqual(store.listUnsummarizedOutsideWindow(id, 8, 12), []);
+});

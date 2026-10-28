@@ -3,12 +3,17 @@ import type { Server } from "node:http";
 import { after, before, test } from "node:test";
 
 import type { Critic } from "../agents/critic.js";
+import type {
+  ConversationSummarizer,
+  SummarizeInput,
+} from "../agents/conversation-summarizer.js";
 import type { LearningExtractor } from "../agents/learning-extractor.js";
 import {
   EMPTY_INPUT_ANSWER,
   type ReasoningStrategy,
   type StrategyOptions,
   type StrategyResult,
+  type TraceEvent,
 } from "../agents/strategy.js";
 import { estimateTokens } from "../context/tokens.js";
 import { ChatTimeoutError } from "../domain/errors.js";
@@ -17,6 +22,7 @@ import { SqliteMemoryStore } from "../memory/memory-store.js";
 import { EMBEDDING_DIMS } from "../memory/similarity.js";
 import {
   renderHistoryPrompt,
+  renderSummaryPrompt,
   selectHistoryWindow,
 } from "../services/history-prompt.js";
 import { renderMemoryPrompt } from "../services/memory-prompt.js";
@@ -28,6 +34,22 @@ const silentLearning: LearningExtractor = {
     return { hasLearning: false, fact: "" };
   },
 };
+
+const silentSummarizer: ConversationSummarizer = {
+  async summarize() {
+    return "silent-summary";
+  },
+};
+
+function countingSummarizer(calls: SummarizeInput[]): ConversationSummarizer {
+  return {
+    async summarize(input) {
+      calls.push(input);
+      const prev = input.previousSummary;
+      return `SUMMARY(prev=${prev.length};n=${input.egressBatch.length})`;
+    },
+  };
+}
 
 async function flushLearning(): Promise<void> {
   await new Promise<void>((resolve) => setImmediate(resolve));
@@ -147,6 +169,7 @@ before(async () => {
       conversationStore: sharedStore,
       memoryStore: sharedMemory,
       learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
     }),
   );
   baseUrl = started.baseUrl;
@@ -508,11 +531,11 @@ test("first turn reports one history message and the labeled prompt", async () =
   }
 });
 
-test("prompt keeps only the 12 newest messages", async () => {
+test("prompt keeps only the 8 newest messages", async () => {
   const calls: CallLog[] = [];
   const store = new SqliteConversationStore(":memory:");
   const id = store.create();
-  for (let index = 0; index < 12; index += 1) {
+  for (let index = 0; index < 8; index += 1) {
     store.append(id, {
       role: index % 2 === 0 ? "user" : "assistant",
       content: `m${index}`,
@@ -526,6 +549,7 @@ test("prompt keeps only the 12 newest messages", async () => {
       },
       conversationStore: store,
       memoryStore: fakeMemoryStore(),
+      conversationSummarizer: silentSummarizer,
     }),
   );
 
@@ -535,9 +559,9 @@ test("prompt keeps only the 12 newest messages", async () => {
       conversationId: id,
     });
     assert.equal(result.status, 200);
-    assert.equal(historyMessagesOf(result.json), 12);
+    assert.equal(historyMessagesOf(result.json), 8);
     const lines = String(calls[0]?.message).split("\n");
-    assert.equal(lines.length, 12);
+    assert.equal(lines.length, 8);
     assert.equal(lines[0], "Copiloto: m1");
     assert.equal(lines.at(-1), "Plantonista: novo");
     assert.equal(String(calls[0]?.message).includes("m0"), false);
@@ -982,6 +1006,7 @@ test("200 metrics include promptTokens and contextBreakdown", async () => {
       conversationStore: new SqliteConversationStore(":memory:"),
       memoryStore: fakeMemoryStore(),
       learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
     }),
   );
 
@@ -993,7 +1018,7 @@ test("200 metrics include promptTokens and contextBreakdown", async () => {
       latencyMs: number;
       historyMessages: number;
       promptTokens: number;
-      contextBreakdown: { history: number; memory: number };
+      contextBreakdown: { history: number; memory: number; summary: number };
     };
     assert.equal(metrics.promptTokens, 99);
     assert.equal(typeof metrics.llmCalls, "number");
@@ -1001,7 +1026,9 @@ test("200 metrics include promptTokens and contextBreakdown", async () => {
     assert.equal(typeof metrics.historyMessages, "number");
     assert.equal(typeof metrics.contextBreakdown.history, "number");
     assert.equal(typeof metrics.contextBreakdown.memory, "number");
+    assert.equal(typeof metrics.contextBreakdown.summary, "number");
     assert.equal(metrics.contextBreakdown.memory, 0);
+    assert.equal(metrics.contextBreakdown.summary, 0);
     assert.ok(metrics.contextBreakdown.history > 0);
   } finally {
     await closeServer(started.server);
@@ -1017,6 +1044,7 @@ test("blank message reports zero promptTokens and zero breakdown", async () => {
       },
       conversationStore: new SqliteConversationStore(":memory:"),
       memoryStore: fakeMemoryStore(),
+      conversationSummarizer: silentSummarizer,
     }),
   );
 
@@ -1025,10 +1053,14 @@ test("blank message reports zero promptTokens and zero breakdown", async () => {
     assert.equal(result.status, 200);
     const metrics = result.json.metrics as {
       promptTokens: number;
-      contextBreakdown: { history: number; memory: number };
+      contextBreakdown: { history: number; memory: number; summary: number };
     };
     assert.equal(metrics.promptTokens, 0);
-    assert.deepEqual(metrics.contextBreakdown, { history: 0, memory: 0 });
+    assert.deepEqual(metrics.contextBreakdown, {
+      history: 0,
+      memory: 0,
+      summary: 0,
+    });
   } finally {
     await closeServer(started.server);
   }
@@ -1051,6 +1083,7 @@ test("contextBreakdown.memory matches estimateTokens of recall block", async () 
       conversationStore: new SqliteConversationStore(":memory:"),
       memoryStore: memory,
       learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
     }),
   );
 
@@ -1061,7 +1094,7 @@ test("contextBreakdown.memory matches estimateTokens of recall block", async () 
     });
     assert.equal(withMemory.status, 200);
     const metrics = withMemory.json.metrics as {
-      contextBreakdown: { history: number; memory: number };
+      contextBreakdown: { history: number; memory: number; summary: number };
     };
     const expectedMemory = estimateTokens(
       renderMemoryPrompt([{ fact }]),
@@ -1071,14 +1104,243 @@ test("contextBreakdown.memory matches estimateTokens of recall block", async () 
     );
     assert.equal(metrics.contextBreakdown.memory, expectedMemory);
     assert.equal(metrics.contextBreakdown.history, expectedHistory);
+    assert.equal(metrics.contextBreakdown.summary, 0);
     assert.ok(expectedMemory > 0);
 
     const withoutUser = await postJson(started.baseUrl, { message: "listar" });
     assert.equal(withoutUser.status, 200);
     const bare = withoutUser.json.metrics as {
-      contextBreakdown: { history: number; memory: number };
+      contextBreakdown: { history: number; memory: number; summary: number };
     };
     assert.equal(bare.contextBreakdown.memory, 0);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("seeded summary enters prompt and contextBreakdown.summary", async () => {
+  const calls: CallLog[] = [];
+  const store = new SqliteConversationStore(":memory:");
+  const id = store.create();
+  for (let index = 0; index < 4; index += 1) {
+    store.append(id, {
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: `m${index}`,
+    });
+  }
+  store.upsertSummary(id, "decisão: abrir INC-9", 2);
+  const summaryBlock = renderSummaryPrompt("decisão: abrir INC-9");
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: store,
+      memoryStore: fakeMemoryStore(),
+      conversationSummarizer: silentSummarizer,
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "status?",
+      conversationId: id,
+    });
+    assert.equal(result.status, 200);
+    assert.match(String(calls[0]?.message), /Resumo da conversa:/);
+    assert.match(String(calls[0]?.message), /decisão: abrir INC-9/);
+    assert.ok(historyMessagesOf(result.json) as number <= 8);
+    const metrics = result.json.metrics as {
+      contextBreakdown: { summary: number };
+    };
+    assert.equal(
+      metrics.contextBreakdown.summary,
+      estimateTokens(summaryBlock),
+    );
+    const other = store.create();
+    store.upsertSummary(other, "resumo-secreto-B", 1);
+    const secondCalls: CallLog[] = [];
+    const startedB = await listen(
+      createApp({
+        registry: {
+          react: makeFake("react", secondCalls),
+          "plan-and-execute": makeFake("plan-and-execute", []),
+        },
+        conversationStore: store,
+        memoryStore: fakeMemoryStore(),
+        conversationSummarizer: silentSummarizer,
+      }),
+    );
+    try {
+      const b = await postJson(startedB.baseUrl, {
+        message: "oi",
+        conversationId: other,
+      });
+      assert.equal(b.status, 200);
+      assert.match(String(secondCalls[0]?.message), /resumo-secreto-B/);
+      assert.equal(
+        String(secondCalls[0]?.message).includes("abrir INC-9"),
+        false,
+      );
+    } finally {
+      await closeServer(startedB.server);
+    }
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("summarizer runs only when 8 messages leave the window", async () => {
+  const calls: CallLog[] = [];
+  const summarizeCalls: SummarizeInput[] = [];
+  const store = new SqliteConversationStore(":memory:");
+  const id = store.create();
+  for (let index = 0; index < 14; index += 1) {
+    store.append(id, {
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: `m${index}`,
+    });
+  }
+  // 14 msgs → outside window 8 = 6 pending; one more turn (+2) → 16 total, 8 pending
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: store,
+      memoryStore: fakeMemoryStore(),
+      conversationSummarizer: countingSummarizer(summarizeCalls),
+    }),
+  );
+
+  try {
+    const before = await postJson(started.baseUrl, {
+      message: "quase",
+      conversationId: id,
+    });
+    assert.equal(before.status, 200);
+    // 16 msgs after append: pending was already 8 before this turn's append...
+    // After 14 seed: pending=6. Turn adds 2 → 16 msgs, pending=8 → consolidates once.
+    assert.equal(summarizeCalls.length, 1);
+    assert.equal(summarizeCalls[0]!.egressBatch.length, 8);
+    assert.equal(summarizeCalls[0]!.previousSummary, "");
+    const summary = store.getSummary(id);
+    assert.ok(summary);
+    assert.equal(summary!.text, "SUMMARY(prev=0;n=8)");
+    const trace = before.json.trace as TraceEvent[];
+    assert.equal(
+      trace.filter((event) => event.type === "summarize").length,
+      1,
+    );
+    assert.equal(
+      trace.find((event) => event.type === "summarize")?.content,
+      summary!.text,
+    );
+
+    const mid = await postJson(started.baseUrl, {
+      message: "meio",
+      conversationId: id,
+    });
+    assert.equal(mid.status, 200);
+    assert.equal(summarizeCalls.length, 1);
+    assert.equal(
+      (mid.json.trace as TraceEvent[]).some((e) => e.type === "summarize"),
+      false,
+    );
+    assert.match(String(calls[1]?.message), /Resumo da conversa:/);
+
+    // Grow until next batch of 8 egresses: after first cover through id 8,
+    // need 8 more outside window. Continue posting until second call.
+    for (let i = 0; i < 8; i += 1) {
+      await postJson(started.baseUrl, {
+        message: `extra-${i}`,
+        conversationId: id,
+      });
+    }
+    assert.ok(summarizeCalls.length >= 2);
+    assert.ok(summarizeCalls[1]!.previousSummary.length > 0);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("summarizer soft-fail leaves prior summary and omits summarize event", async () => {
+  // 18 msgs, cover through 2 → 8 pending outside the last-8 window (ids 3..10).
+  const store = new SqliteConversationStore(":memory:");
+  const id = store.create();
+  for (let index = 0; index < 18; index += 1) {
+    store.append(id, {
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: `z${index}`,
+    });
+  }
+  store.upsertSummary(id, "keep-me", 2);
+  assert.equal(store.listUnsummarizedOutsideWindow(id, 8, 2).length, 8);
+
+  const throwing: ConversationSummarizer = {
+    async summarize() {
+      throw new Error("boom");
+    },
+  };
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", []),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: store,
+      memoryStore: fakeMemoryStore(),
+      conversationSummarizer: throwing,
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "go",
+      conversationId: id,
+    });
+    assert.equal(result.status, 200);
+    assert.equal(store.getSummary(id)?.text, "keep-me");
+    assert.equal(
+      (result.json.trace as TraceEvent[]).some((e) => e.type === "summarize"),
+      false,
+    );
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("blank message does not call summarizer", async () => {
+  const summarizeCalls: SummarizeInput[] = [];
+  const store = new SqliteConversationStore(":memory:");
+  const id = store.create();
+  for (let index = 0; index < 16; index += 1) {
+    store.append(id, {
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: `m${index}`,
+    });
+  }
+  const started = await listen(
+    createApp({
+      registry: {
+        react: makeFake("react", []),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: store,
+      memoryStore: fakeMemoryStore(),
+      conversationSummarizer: countingSummarizer(summarizeCalls),
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "  ",
+      conversationId: id,
+    });
+    assert.equal(result.status, 200);
+    assert.equal(summarizeCalls.length, 0);
   } finally {
     await closeServer(started.server);
   }

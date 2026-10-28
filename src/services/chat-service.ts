@@ -4,6 +4,10 @@ import {
 } from "../agents/index.js";
 import type { Critic } from "../agents/critic.js";
 import {
+  createLlmConversationSummarizer,
+  type ConversationSummarizer,
+} from "../agents/conversation-summarizer.js";
+import {
   createLlmLearningExtractor,
   type LearningExtractor,
 } from "../agents/learning-extractor.js";
@@ -11,6 +15,7 @@ import {
   buildEmptyInputResult,
   isBlankInput,
   type StrategyResult,
+  type TraceEvent,
 } from "../agents/strategy.js";
 import { estimateTokens } from "../context/tokens.js";
 import { ChatTimeoutError } from "../domain/errors.js";
@@ -18,6 +23,7 @@ import type { ConversationStore, MemoryStore } from "../domain/types.js";
 import {
   HISTORY_LIMIT,
   renderHistoryPrompt,
+  renderSummaryPrompt,
   selectHistoryWindow,
 } from "./history-prompt.js";
 import { scheduleLearning } from "./learning-reflector.js";
@@ -35,11 +41,13 @@ export type RunChatInput = {
   userId?: string;
   memoryStore: MemoryStore;
   learningExtractor?: LearningExtractor;
+  conversationSummarizer?: ConversationSummarizer;
 };
 
 export type ContextBreakdown = {
   history: number;
   memory: number;
+  summary: number;
 };
 
 export type ChatResult = Omit<StrategyResult, "metrics"> & {
@@ -53,6 +61,7 @@ export type ChatResult = Omit<StrategyResult, "metrics"> & {
 const DEFAULT_TIMEOUT_MS = 180_000;
 const DEFAULT_MAX_ITERATIONS = 8;
 const DEFAULT_MAX_REFLECTIONS = 2;
+const EGRESS_BATCH_SIZE = 8;
 
 export async function runChat(input: RunChatInput): Promise<ChatResult> {
   const strategyName = input.strategy === undefined ? "react" : input.strategy;
@@ -78,7 +87,7 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
         ...empty.metrics,
         historyMessages: 0,
         promptTokens: 0,
-        contextBreakdown: { history: 0, memory: 0 },
+        contextBreakdown: { history: 0, memory: 0, summary: 0 },
       },
       ...(input.conversationId !== undefined
         ? { conversationId: input.conversationId }
@@ -90,12 +99,23 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
   const history = renderHistoryPrompt(window);
 
   let memoryBlock = "";
-  let prompt = history;
   if (input.userId !== undefined) {
     const recalled = await input.memoryStore.recall(input.userId, input.message);
     memoryBlock = renderMemoryPrompt(recalled);
-    prompt = memoryBlock ? `${memoryBlock}\n\n${history}` : history;
   }
+
+  let summaryBlock = "";
+  if (input.conversationId !== undefined) {
+    const existing = input.conversationStore.getSummary(input.conversationId);
+    if (existing !== null) {
+      summaryBlock = renderSummaryPrompt(existing.text);
+    }
+  }
+
+  const parts = [memoryBlock, summaryBlock, history].filter(
+    (part) => part.length > 0,
+  );
+  const prompt = parts.join("\n\n");
 
   const runPromise = strategy.run(prompt, {
     maxIterations: DEFAULT_MAX_ITERATIONS,
@@ -128,6 +148,41 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
       content: result.answer,
     });
 
+    const summarizeEvents: TraceEvent[] = [];
+    const existingSummary =
+      input.conversationStore.getSummary(conversationId);
+    const covered = existingSummary?.coveredThroughId ?? 0;
+    const pending = input.conversationStore.listUnsummarizedOutsideWindow(
+      conversationId,
+      HISTORY_LIMIT,
+      covered,
+    );
+
+    if (pending.length >= EGRESS_BATCH_SIZE) {
+      const batch = pending.slice(0, EGRESS_BATCH_SIZE);
+      const summarizer =
+        input.conversationSummarizer ?? createLlmConversationSummarizer();
+      try {
+        const newText = (
+          await summarizer.summarize({
+            previousSummary: existingSummary?.text ?? "",
+            egressBatch: batch.map(({ role, content }) => ({ role, content })),
+          })
+        ).trim();
+        if (newText.length > 0) {
+          const lastId = batch[EGRESS_BATCH_SIZE - 1]!.id;
+          input.conversationStore.upsertSummary(
+            conversationId,
+            newText,
+            lastId,
+          );
+          summarizeEvents.push({ type: "summarize", content: newText });
+        }
+      } catch (error: unknown) {
+        console.error("[history-summarizer]", error);
+      }
+    }
+
     if (input.userId !== undefined) {
       scheduleLearning({
         userId: input.userId,
@@ -139,6 +194,7 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
 
     return {
       ...result,
+      trace: [...result.trace, ...summarizeEvents],
       conversationId,
       metrics: {
         ...result.metrics,
@@ -146,6 +202,7 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
         contextBreakdown: {
           history: estimateTokens(history),
           memory: estimateTokens(memoryBlock),
+          summary: estimateTokens(summaryBlock),
         },
       },
     };

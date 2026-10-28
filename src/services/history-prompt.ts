@@ -3,7 +3,7 @@ import type {
   ConversationRole,
 } from "../domain/types.js";
 
-export const HISTORY_LIMIT = 12;
+export const HISTORY_LIMIT = 8;
 
 const ROLE_LABEL: Record<ConversationRole, string> = {
   user: "Plantonista",
@@ -24,4 +24,12 @@ export function renderHistoryPrompt(
   return messages
     .map((message) => `${ROLE_LABEL[message.role]}: ${message.content}`)
     .join("\n");
+}
+
+export function renderSummaryPrompt(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) {
+    return "";
+  }
+  return `Resumo da conversa:\n${trimmed}`;
 }

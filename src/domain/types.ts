@@ -47,10 +47,28 @@ export type ConversationMessage = {
   content: string;
 };
 
+export type StoredMessage = ConversationMessage & { id: number };
+
+export type ConversationSummaryRecord = {
+  text: string;
+  coveredThroughId: number;
+};
+
 export type ConversationStore = {
   create(): string;
   append(conversationId: string, message: ConversationMessage): void;
   lastMessages(conversationId: string, limit: number): ConversationMessage[];
+  getSummary(conversationId: string): ConversationSummaryRecord | null;
+  upsertSummary(
+    conversationId: string,
+    text: string,
+    coveredThroughId: number,
+  ): void;
+  listUnsummarizedOutsideWindow(
+    conversationId: string,
+    windowSize: number,
+    coveredThroughId: number,
+  ): StoredMessage[];
 };
 
 export type MemoryRecord = {

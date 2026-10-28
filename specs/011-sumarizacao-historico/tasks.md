@@ -1,4 +1,4 @@
-# Tasks: Sumarização de histórico (pruning)
+﻿# Tasks: Sumarização de histórico (pruning)
 
 **Input**: Design documents from `/specs/011-sumarizacao-historico/`
 
@@ -24,9 +24,9 @@
 
 **Purpose**: Esqueleto tipado da porta do sumarizador e stubs de composição sem alterar o comportamento do `/chat` ainda
 
-- [ ] T001 [P] Create `src/agents/conversation-summarizer.ts` exporting `SummarizeInput`, `ConversationSummarizer`, and stub `createLlmConversationSummarizer()` that throws `Error("not implemented")` per `contracts/summarizer.md`
-- [ ] T002 [P] Create `src/agents/conversation-summarizer.test.ts` with `node:test` importing the stubs (`test.todo` or failing placeholder OK)
-- [ ] T003 [P] Add pure stub `renderSummaryPrompt(text: string): string` in `src/services/history-prompt.ts` that throws `Error("not implemented")` (or returns placeholder) without changing `HISTORY_LIMIT` yet
+- [X] T001 [P] Create `src/agents/conversation-summarizer.ts` exporting `SummarizeInput`, `ConversationSummarizer`, and stub `createLlmConversationSummarizer()` that throws `Error("not implemented")` per `contracts/summarizer.md`
+- [X] T002 [P] Create `src/agents/conversation-summarizer.test.ts` with `node:test` importing the stubs (`test.todo` or failing placeholder OK)
+- [X] T003 [P] Add pure stub `renderSummaryPrompt(text: string): string` in `src/services/history-prompt.ts` that throws `Error("not implemented")` (or returns placeholder) without changing `HISTORY_LIMIT` yet
 
 **Checkpoint**: Módulos novos existem; typecheck do restante intacto
 
@@ -38,14 +38,14 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Change `HISTORY_LIMIT` from `12` to `8` in `src/services/history-prompt.ts`; update `src/services/history-prompt.test.ts` asserts that hardcode 12 → 8
-- [ ] T005 Update HTTP/window cases in `src/http/server.test.ts` that seed/assert `historyMessages === 12` / “12 newest” to use **8** (keep tests green after limit change)
-- [ ] T006 Extend `ConversationStore` in `src/domain/types.ts` with: `StoredMessage = ConversationMessage & { id: number }`; `ConversationSummaryRecord = { text: string; coveredThroughId: number }`; methods `getSummary`, `upsertSummary(conversationId, text, coveredThroughId)`, `listUnsummarizedOutsideWindow(conversationId, windowSize, coveredThroughId)` per `contracts/conversation-store.md` / `data-model.md` (`summary` NOT NULL; `covered_through_id` INTEGER NOT NULL; `updated_at` INTEGER NOT NULL; one row per conversation)
-- [ ] T007 Implement DDL `CREATE TABLE IF NOT EXISTS conversation_summaries (...)` and the three methods in `src/store/sqlite-conversation-store.ts` (prepared statements; `ConversationNotFoundError` for unknown id; reject `upsertSummary` when `text.trim()` empty; `listUnsummarizedOutsideWindow` returns `id > coveredThroughId` excluding the `windowSize` newest, ordered ASC)
-- [ ] T008 [P] Extend `TraceEvent` in `src/agents/strategy.ts` with `{ type: "summarize"; content: string }` (no emission yet)
-- [ ] T009 [P] Extend `CreateAppOptions` / `RunChatInput` in `src/http/server.ts` and `src/services/chat-service.ts` with optional `conversationSummarizer?: ConversationSummarizer`; default later in US2 (`createLlmConversationSummarizer`)
-- [ ] T010 Add store tests in `src/store/sqlite-conversation-store.test.ts` for `:memory:`: `getSummary` null on new conversation; `upsertSummary` then `getSummary`; replace on second upsert; isolation across conversations; `listUnsummarizedOutsideWindow` with seeded messages (windowSize 8, covered 0 → pending outside last 8); unknown conversation → domain error
-- [ ] T011 Run `npm run typecheck` and `npm test` until green after T004–T010
+- [X] T004 Change `HISTORY_LIMIT` from `12` to `8` in `src/services/history-prompt.ts`; update `src/services/history-prompt.test.ts` asserts that hardcode 12 → 8
+- [X] T005 Update HTTP/window cases in `src/http/server.test.ts` that seed/assert `historyMessages === 12` / “12 newest” to use **8** (keep tests green after limit change)
+- [X] T006 Extend `ConversationStore` in `src/domain/types.ts` with: `StoredMessage = ConversationMessage & { id: number }`; `ConversationSummaryRecord = { text: string; coveredThroughId: number }`; methods `getSummary`, `upsertSummary(conversationId, text, coveredThroughId)`, `listUnsummarizedOutsideWindow(conversationId, windowSize, coveredThroughId)` per `contracts/conversation-store.md` / `data-model.md` (`summary` NOT NULL; `covered_through_id` INTEGER NOT NULL; `updated_at` INTEGER NOT NULL; one row per conversation)
+- [X] T007 Implement DDL `CREATE TABLE IF NOT EXISTS conversation_summaries (...)` and the three methods in `src/store/sqlite-conversation-store.ts` (prepared statements; `ConversationNotFoundError` for unknown id; reject `upsertSummary` when `text.trim()` empty; `listUnsummarizedOutsideWindow` returns `id > coveredThroughId` excluding the `windowSize` newest, ordered ASC)
+- [X] T008 [P] Extend `TraceEvent` in `src/agents/strategy.ts` with `{ type: "summarize"; content: string }` (no emission yet)
+- [X] T009 [P] Extend `CreateAppOptions` / `RunChatInput` in `src/http/server.ts` and `src/services/chat-service.ts` with optional `conversationSummarizer?: ConversationSummarizer`; default later in US2 (`createLlmConversationSummarizer`)
+- [X] T010 Add store tests in `src/store/sqlite-conversation-store.test.ts` for `:memory:`: `getSummary` null on new conversation; `upsertSummary` then `getSummary`; replace on second upsert; isolation across conversations; `listUnsummarizedOutsideWindow` with seeded messages (windowSize 8, covered 0 → pending outside last 8); unknown conversation → domain error
+- [X] T011 Run `npm run typecheck` and `npm test` until green after T004–T010
 
 **Checkpoint**: Foundation tipada — US1 pode ler/compor resumo; US2 pode consolidar; US3 pode emitir evento
 
@@ -61,16 +61,16 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T012 [P] [US1] In `src/services/history-prompt.test.ts`, add cases for `renderSummaryPrompt`: empty/whitespace → `""` (or no block); non-empty → starts with `Resumo da conversa:\n` and includes text
-- [ ] T013 [P] [US1] In `src/http/server.test.ts`, add case: seed conversation with `upsertSummary` + enough messages; fake echoes `calls[0].message` → includes `Resumo da conversa:` and at most 8 history lines; `metrics.historyMessages` ∈ 1..8; `contextBreakdown.summary === estimateTokens` of the summary block (0 if none)
-- [ ] T014 [P] [US1] In `src/http/server.test.ts`, add case: two conversations — summary of A must not appear in echoed prompt of B; short thread (≤8 msgs, no summary) → no invented summary block
+- [X] T012 [P] [US1] In `src/services/history-prompt.test.ts`, add cases for `renderSummaryPrompt`: empty/whitespace → `""` (or no block); non-empty → starts with `Resumo da conversa:\n` and includes text
+- [X] T013 [P] [US1] In `src/http/server.test.ts`, add case: seed conversation with `upsertSummary` + enough messages; fake echoes `calls[0].message` → includes `Resumo da conversa:` and at most 8 history lines; `metrics.historyMessages` ∈ 1..8; `contextBreakdown.summary === estimateTokens` of the summary block (0 if none)
+- [X] T014 [P] [US1] In `src/http/server.test.ts`, add case: two conversations — summary of A must not appear in echoed prompt of B; short thread (≤8 msgs, no summary) → no invented summary block
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] Implement `renderSummaryPrompt` in `src/services/history-prompt.ts` per contracts (`Resumo da conversa:\n…`; blank → empty string)
-- [ ] T016 [US1] In `src/services/chat-service.ts`, before `strategy.run`: `getSummary` when `conversationId` present; compose prompt order memory → summary block → history (`HISTORY_LIMIT`); set `contextBreakdown.summary` via `estimateTokens(summaryBlock)` (always present with `history`/`memory`); keep `historyMessages = window.length` (0–8)
-- [ ] T017 [US1] Confirm blank-input path keeps `historyMessages: 0` and `contextBreakdown.summary: 0` with no store summary read side effects that invent content
-- [ ] T018 [US1] Run US1 tests + `npm run typecheck` until green
+- [X] T015 [US1] Implement `renderSummaryPrompt` in `src/services/history-prompt.ts` per contracts (`Resumo da conversa:\n…`; blank → empty string)
+- [X] T016 [US1] In `src/services/chat-service.ts`, before `strategy.run`: `getSummary` when `conversationId` present; compose prompt order memory → summary block → history (`HISTORY_LIMIT`); set `contextBreakdown.summary` via `estimateTokens(summaryBlock)` (always present with `history`/`memory`); keep `historyMessages = window.length` (0–8)
+- [X] T017 [US1] Confirm blank-input path keeps `historyMessages: 0` and `contextBreakdown.summary: 0` with no store summary read side effects that invent content
+- [X] T018 [US1] Run US1 tests + `npm run typecheck` until green
 
 **Checkpoint**: MVP — janela 8 + resumo no contexto (resumo pode ser seedado no store)
 
@@ -86,17 +86,17 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T019 [P] [US2] In `src/agents/conversation-summarizer.test.ts` (or chat-service test), document fake that records calls and returns deterministic text including prior+batch size
-- [ ] T020 [P] [US2] In `src/http/server.test.ts`, drive turns with fake strategy + fake summarizer until 16 messages (8 outside window): assert summarizer call count stays 0 before the closing turn, becomes 1 on that turn, and `getSummary` text matches fake output with `coveredThroughId` = last batch id
-- [ ] T021 [P] [US2] In `src/http/server.test.ts`, after first consolidation, more turns with pending &lt; 8 → call count unchanged; on next full batch → second call with non-empty `previousSummary`
-- [ ] T022 [P] [US2] In `src/http/server.test.ts` (or store+service), fake summarizer throws or returns whitespace → prior summary unchanged; turn still 200; blank/404 paths never call summarizer
+- [X] T019 [P] [US2] In `src/agents/conversation-summarizer.test.ts` (or chat-service test), document fake that records calls and returns deterministic text including prior+batch size
+- [X] T020 [P] [US2] In `src/http/server.test.ts`, drive turns with fake strategy + fake summarizer until 16 messages (8 outside window): assert summarizer call count stays 0 before the closing turn, becomes 1 on that turn, and `getSummary` text matches fake output with `coveredThroughId` = last batch id
+- [X] T021 [P] [US2] In `src/http/server.test.ts`, after first consolidation, more turns with pending &lt; 8 → call count unchanged; on next full batch → second call with non-empty `previousSummary`
+- [X] T022 [P] [US2] In `src/http/server.test.ts` (or store+service), fake summarizer throws or returns whitespace → prior summary unchanged; turn still 200; blank/404 paths never call summarizer
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Implement `createLlmConversationSummarizer` in `src/agents/conversation-summarizer.ts`: prompt merges `previousSummary` + 8 egress messages; preserve decisões/fatos/pendências; target ~150 tokens (~600 chars chars÷4); return string
-- [ ] T024 [US2] In `src/services/chat-service.ts`, after successful user+assistant append: compute pending via `listUnsummarizedOutsideWindow(id, 8, covered)`; if `length >= 8`, `await (conversationSummarizer ?? createLlmConversationSummarizer()).summarize({ previousSummary: existing?.text ?? "", egressBatch: pending.slice(0, 8) })`; on non-blank success → `upsertSummary(id, text, batch[7].id)`; on throw/blank → `console.error` with `[history-summarizer]`, no upsert
-- [ ] T025 [US2] Ensure empty message / 400 / 422 / 404 / 504 paths never invoke summarizer or mutate summaries
-- [ ] T026 [US2] Run US2 tests + `npm run typecheck` until green
+- [X] T023 [US2] Implement `createLlmConversationSummarizer` in `src/agents/conversation-summarizer.ts`: prompt merges `previousSummary` + 8 egress messages; preserve decisões/fatos/pendências; target ~150 tokens (~600 chars chars÷4); return string
+- [X] T024 [US2] In `src/services/chat-service.ts`, after successful user+assistant append: compute pending via `listUnsummarizedOutsideWindow(id, 8, covered)`; if `length >= 8`, `await (conversationSummarizer ?? createLlmConversationSummarizer()).summarize({ previousSummary: existing?.text ?? "", egressBatch: pending.slice(0, 8) })`; on non-blank success → `upsertSummary(id, text, batch[7].id)`; on throw/blank → `console.error` with `[history-summarizer]`, no upsert
+- [X] T025 [US2] Ensure empty message / 400 / 422 / 404 / 504 paths never invoke summarizer or mutate summaries
+- [X] T026 [US2] Run US2 tests + `npm run typecheck` until green
 
 **Checkpoint**: Lote de 8 dispara merge+persistência; requests intermediários não
 
@@ -112,14 +112,14 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T027 [P] [US3] In `src/http/server.test.ts`, assert consolidating turn’s `trace` includes exactly one event with `type === "summarize"` and `content` equal to upserted summary text
-- [ ] T028 [P] [US3] In `src/http/server.test.ts`, assert non-consolidating 200 and soft-fail paths have zero `summarize` events
+- [X] T027 [P] [US3] In `src/http/server.test.ts`, assert consolidating turn’s `trace` includes exactly one event with `type === "summarize"` and `content` equal to upserted summary text
+- [X] T028 [P] [US3] In `src/http/server.test.ts`, assert non-consolidating 200 and soft-fail paths have zero `summarize` events
 
 ### Implementation for User Story 3
 
-- [ ] T029 [US3] In `src/services/chat-service.ts`, after successful `upsertSummary`, append `{ type: "summarize", content: newText }` to the returned `trace` (after strategy trace); do not append on soft-fail or when pending &lt; 8
-- [ ] T030 [US3] Confirm `src/http/server.ts` serializes `trace` as-is (no filter stripping `summarize`)
-- [ ] T031 [US3] Run US3 tests + `npm run typecheck` until green
+- [X] T029 [US3] In `src/services/chat-service.ts`, after successful `upsertSummary`, append `{ type: "summarize", content: newText }` to the returned `trace` (after strategy trace); do not append on soft-fail or when pending &lt; 8
+- [X] T030 [US3] Confirm `src/http/server.ts` serializes `trace` as-is (no filter stripping `summarize`)
+- [X] T031 [US3] Run US3 tests + `npm run typecheck` until green
 
 **Checkpoint**: Evento `summarize` observável só na consolidação bem-sucedida
 
@@ -133,13 +133,13 @@
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T032 [P] [US4] Audit/add any missing coverage gaps in `src/store/sqlite-conversation-store.test.ts` and `src/http/server.test.ts` listed in `quickstart.md` §1 (sem resumo, lote incompleto, lote fecha, resumo no eco, isolamento)
-- [ ] T033 [P] [US4] Ensure silent/default fakes in `src/http/server.test.ts` inject `conversationSummarizer` where needed so suite never calls real LLM summarizer
+- [X] T032 [P] [US4] Audit/add any missing coverage gaps in `src/store/sqlite-conversation-store.test.ts` and `src/http/server.test.ts` listed in `quickstart.md` §1 (sem resumo, lote incompleto, lote fecha, resumo no eco, isolamento)
+- [X] T033 [P] [US4] Ensure silent/default fakes in `src/http/server.test.ts` inject `conversationSummarizer` where needed so suite never calls real LLM summarizer
 
 ### Implementation for User Story 4
 
-- [ ] T034 [US4] Verify arena (`src/arena.ts`) and bench (`src/bench.ts`) still do not wire conversation summarization (FR-012); no code changes unless accidental coupling
-- [ ] T035 [US4] Run full `npm run typecheck` and `npm test` until green
+- [X] T034 [US4] Verify arena (`src/arena.ts`) and bench (`src/bench.ts`) still do not wire conversation summarization (FR-012); no code changes unless accidental coupling
+- [X] T035 [US4] Run full `npm run typecheck` and `npm test` until green
 
 **Checkpoint**: Regressão fake completa; constituição V satisfeita
 
@@ -149,9 +149,9 @@
 
 **Purpose**: Alinhamento final com quickstart e contratos
 
-- [ ] T036 [P] Walk `specs/011-sumarizacao-historico/quickstart.md` checklist against implemented behavior; fix gaps in tests or composition if any
-- [ ] T037 [P] Confirm `contextBreakdown` always includes `summary` key (0 when absent) in all 200 metric paths including blank, per `contracts/chat-http.md`
-- [ ] T038 Final `npm run typecheck` && `npm test` green
+- [X] T036 [P] Walk `specs/011-sumarizacao-historico/quickstart.md` checklist against implemented behavior; fix gaps in tests or composition if any
+- [X] T037 [P] Confirm `contextBreakdown` always includes `summary` key (0 when absent) in all 200 metric paths including blank, per `contracts/chat-http.md`
+- [X] T038 Final `npm run typecheck` && `npm test` green
 
 ---
 
@@ -251,3 +251,4 @@ Task: "T022 soft-fail / no-call paths in src/http/server.test.ts"
 - First consolidation typically at ≥16 persisted messages (8 outside + 8 in window)
 - Arena/bench out of scope (FR-012)
 - Commit after each task or logical group (constituição VIII)
+
