@@ -10,14 +10,36 @@ export type ToolName =
   | "check_provider_status"
   | "forget_preference";
 
+export type ProductionRoute = "react" | "plan-and-execute" | "reflection";
+
+export type TraceNode =
+  | "context"
+  | "router"
+  | "react"
+  | "plan-and-execute"
+  | "reflection"
+  | "response";
+
 export type TraceEvent =
-  | { type: "thought"; content: string }
-  | { type: "action"; tool: ToolName; args: Record<string, unknown> }
-  | { type: "observation"; content: string }
-  | { type: "plan"; steps: string[] }
-  | { type: "critique"; content: string }
-  | { type: "answer"; content: string }
-  | { type: "summarize"; content: string };
+  | { type: "thought"; content: string; node?: TraceNode }
+  | {
+      type: "action";
+      tool: ToolName;
+      args: Record<string, unknown>;
+      node?: TraceNode;
+    }
+  | { type: "observation"; content: string; node?: TraceNode }
+  | { type: "plan"; steps: string[]; node?: TraceNode }
+  | { type: "critique"; content: string; node?: TraceNode }
+  | { type: "answer"; content: string; node?: TraceNode }
+  | { type: "summarize"; content: string; node?: TraceNode }
+  | {
+      type: "route";
+      route: ProductionRoute;
+      reason: string;
+      override: boolean;
+      node?: TraceNode;
+    };
 
 export type Metrics = {
   llmCalls: number;

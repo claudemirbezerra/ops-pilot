@@ -13,6 +13,7 @@ import {
 import type { Critic } from "../agents/critic.js";
 import type { ConversationSummarizer } from "../agents/conversation-summarizer.js";
 import type { LearningExtractor } from "../agents/learning-extractor.js";
+import type { ProductionRouter } from "../agents/production-graph.js";
 import type { ConversationStore, MemoryStore } from "../domain/types.js";
 import { runChat } from "../services/chat-service.js";
 import { SqliteConversationStore } from "../store/sqlite-conversation-store.js";
@@ -21,6 +22,7 @@ import {
   ChatTimeoutError,
   ConversationNotFoundError,
   EmbeddingUnavailableError,
+  InvalidRouteError,
   UnknownStrategyError,
 } from "../domain/errors.js";
 
@@ -37,6 +39,7 @@ const chatBodySchema = z.object({
 export type CreateAppOptions = {
   registry?: ChannelRegistry;
   critic?: Critic;
+  router?: ProductionRouter;
   timeoutMs?: number;
   conversationStore?: ConversationStore;
   memoryStore?: MemoryStore;
@@ -47,6 +50,7 @@ export type CreateAppOptions = {
 export function createApp(options: CreateAppOptions = {}): Express {
   const registry = options.registry ?? channelStrategies;
   const critic = options.critic;
+  const router = options.router;
   const timeoutMs = options.timeoutMs ?? DEFAULT_CHAT_TIMEOUT_MS;
   const conversationStore =
     options.conversationStore ?? new SqliteConversationStore();
@@ -93,6 +97,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
         reflect: parsed.data.reflect,
         registry,
         critic,
+        router,
         timeoutMs,
         conversationId: parsed.data.conversationId,
         conversationStore,
@@ -116,6 +121,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
       }
       if (error instanceof ConversationNotFoundError) {
         res.status(404).json({ message: error.message });
+        return;
+      }
+      if (error instanceof InvalidRouteError) {
+        res.status(502).json({ message: error.message });
         return;
       }
       if (error instanceof ChatTimeoutError) {

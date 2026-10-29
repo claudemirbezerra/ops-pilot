@@ -23,6 +23,12 @@ export class MissingModelConfigError extends DomainError {}
 
 export class UnknownStrategyError extends DomainError {}
 
+export class InvalidRouteError extends DomainError {
+  constructor(message = "Não foi possível decidir a rota.") {
+    super(message);
+  }
+}
+
 export class EmptyStrategySelectionError extends DomainError {}
 
 export class InvalidMaxReflectionsError extends DomainError {}

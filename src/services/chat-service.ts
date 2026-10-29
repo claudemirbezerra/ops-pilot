@@ -1,7 +1,4 @@
-import {
-  resolveChannelStrategy,
-  type ChannelRegistry,
-} from "../agents/index.js";
+import { channelStrategies, type ChannelRegistry } from "../agents/index.js";
 import type { Critic } from "../agents/critic.js";
 import {
   createLlmConversationSummarizer,
@@ -12,17 +9,20 @@ import {
   type LearningExtractor,
 } from "../agents/learning-extractor.js";
 import {
+  createLlmRouter,
+  runProductionGraph,
+  type ProductionRouter,
+} from "../agents/production-graph.js";
+import { isProductionRoute } from "../agents/production-route.js";
+import {
   buildEmptyInputResult,
   isBlankInput,
   type StrategyResult,
   type TraceEvent,
 } from "../agents/strategy.js";
-import {
-  buildContext,
-  resolveContextBudgets,
-} from "../context/context-builder.js";
+import { resolveContextBudgets } from "../context/context-builder.js";
 import { estimateTokens } from "../context/tokens.js";
-import { ChatTimeoutError } from "../domain/errors.js";
+import { ChatTimeoutError, UnknownStrategyError } from "../domain/errors.js";
 import type { ConversationStore, MemoryStore } from "../domain/types.js";
 import {
   HISTORY_LIMIT,
@@ -37,6 +37,7 @@ export type RunChatInput = {
   reflect?: boolean;
   registry?: ChannelRegistry;
   critic?: Critic;
+  router?: ProductionRouter;
   timeoutMs?: number;
   conversationId?: string;
   conversationStore: ConversationStore;
@@ -66,25 +67,19 @@ const DEFAULT_MAX_REFLECTIONS = 2;
 const EGRESS_BATCH_SIZE = 8;
 
 export async function runChat(input: RunChatInput): Promise<ChatResult> {
-  const strategyName = input.strategy === undefined ? "react" : input.strategy;
   const reflect = input.reflect === true;
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-
-  const strategy = resolveChannelStrategy({
-    strategy: strategyName,
-    reflect,
-    registry: input.registry,
-    critic: input.critic,
-  });
-
-  const prior = input.conversationId
-    ? input.conversationStore.lastMessages(input.conversationId, HISTORY_LIMIT)
-    : [];
+  const registry = input.registry ?? channelStrategies;
+  const router = input.router ?? createLlmRouter();
 
   if (isBlankInput(input.message)) {
+    if (input.conversationId !== undefined) {
+      input.conversationStore.lastMessages(input.conversationId, HISTORY_LIMIT);
+    }
     const empty = buildEmptyInputResult();
     return {
       ...empty,
+      trace: empty.trace.map((event) => ({ ...event, node: "response" as const })),
       metrics: {
         ...empty.metrics,
         historyMessages: 0,
@@ -96,6 +91,16 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
         : {}),
     };
   }
+
+  if (input.strategy !== undefined && !isProductionRoute(input.strategy)) {
+    throw new UnknownStrategyError(
+      `Estratégia desconhecida: ${input.strategy}.`,
+    );
+  }
+
+  const prior = input.conversationId
+    ? input.conversationStore.lastMessages(input.conversationId, HISTORY_LIMIT)
+    : [];
 
   const window = selectHistoryWindow(prior, input.message);
   const priorInWindow = window.slice(0, -1);
@@ -114,33 +119,33 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
   }
 
   const budgets = resolveContextBudgets(process.env);
-  const built = buildContext(
-    {
-      system: "",
-      message: input.message,
-      summary: summaryText,
-      window: priorInWindow,
-      memory: recalled.map((item) => ({ fact: item.fact, score: item.score })),
-    },
-    budgets,
-  );
-  const prompt = built.prompt;
-  const currentLine = renderHistoryPrompt([
-    { role: "user", content: input.message },
-  ]);
-  const historyForBreakdown =
-    built.sections.window.length > 0
-      ? `${built.sections.window}\n${currentLine}`
-      : currentLine;
+  const sections = {
+    system: "",
+    message: input.message,
+    summary: summaryText,
+    window: priorInWindow,
+    memory: recalled.map((item) => ({ fact: item.fact, score: item.score })),
+  };
 
-  const runPromise = strategy.run(prompt, {
+  const runPromise = runProductionGraph({
+    message: input.message,
+    sections,
+    budgets,
+    override:
+      input.strategy !== undefined && isProductionRoute(input.strategy)
+        ? input.strategy
+        : undefined,
+    reflect,
     maxIterations: DEFAULT_MAX_ITERATIONS,
     maxReflections: DEFAULT_MAX_REFLECTIONS,
     userId: input.userId,
     memoryStore: input.memoryStore,
+    registry,
+    critic: input.critic,
+    router,
   });
 
-  // Avoid unhandled rejection if the timer wins and the strategy settles later.
+  // Avoid unhandled rejection if the timer wins and the graph settles later.
   void runPromise.catch(() => undefined);
 
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -192,7 +197,11 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
             newText,
             lastId,
           );
-          summarizeEvents.push({ type: "summarize", content: newText });
+          summarizeEvents.push({
+            type: "summarize",
+            content: newText,
+            node: "response",
+          });
         }
       } catch (error: unknown) {
         console.error("[history-summarizer]", error);
@@ -208,17 +217,27 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
       });
     }
 
+    const currentLine = renderHistoryPrompt([
+      { role: "user", content: input.message },
+    ]);
+    const historyForBreakdown =
+      result.built.sections.window.length > 0
+        ? `${result.built.sections.window}\n${currentLine}`
+        : currentLine;
+
     return {
-      ...result,
+      answer: result.answer,
       trace: [...result.trace, ...summarizeEvents],
       conversationId,
       metrics: {
-        ...result.metrics,
+        llmCalls: result.metrics.llmCalls,
+        latencyMs: result.metrics.latencyMs,
+        promptTokens: result.metrics.promptTokens,
         historyMessages: window.length,
         contextBreakdown: {
           history: estimateTokens(historyForBreakdown),
-          memory: estimateTokens(built.sections.memory),
-          summary: estimateTokens(built.sections.summary),
+          memory: estimateTokens(result.built.sections.memory),
+          summary: estimateTokens(result.built.sections.summary),
         },
       },
     };

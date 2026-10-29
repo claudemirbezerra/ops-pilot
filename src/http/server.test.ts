@@ -8,8 +8,11 @@ import type {
   SummarizeInput,
 } from "../agents/conversation-summarizer.js";
 import type { LearningExtractor } from "../agents/learning-extractor.js";
+import type { ProductionRouter } from "../agents/production-graph.js";
+import { OVERRIDE_REASON } from "../agents/production-route.js";
 import {
   EMPTY_INPUT_ANSWER,
+  type ProductionRoute,
   type ReasoningStrategy,
   type StrategyOptions,
   type StrategyResult,
@@ -27,7 +30,26 @@ import {
 } from "../services/history-prompt.js";
 import { renderMemoryPrompt } from "../services/memory-prompt.js";
 import { SqliteConversationStore } from "../store/sqlite-conversation-store.js";
-import { createApp } from "./server.js";
+import { createApp, type CreateAppOptions } from "./server.js";
+
+function fixedRouter(
+  route: ProductionRoute = "react",
+  reason = "rota-de-teste",
+  costs = { llmCalls: 1, promptTokens: 3 },
+): ProductionRouter {
+  return {
+    async decide() {
+      return { route, reason, ...costs };
+    },
+  };
+}
+
+function testApp(options: CreateAppOptions = {}) {
+  return createApp({
+    ...options,
+    router: options.router ?? fixedRouter("react"),
+  });
+}
 
 const silentLearning: LearningExtractor = {
   async extract() {
@@ -159,7 +181,7 @@ let server: Server;
 
 before(async () => {
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: reactFake,
         "plan-and-execute": planFake,
@@ -355,7 +377,7 @@ test("ChatTimeoutError message for 180000", () => {
 
 test("short timeout with never-settling fake returns 504", async () => {
   const hanging = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeNeverSettling("react"),
         "plan-and-execute": makeNeverSettling("plan-and-execute"),
@@ -390,7 +412,7 @@ test("short timeout with never-settling fake returns 504", async () => {
 test("fast fake still returns 200 under short timeout", async () => {
   const fastCalls: CallLog[] = [];
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", fastCalls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -417,7 +439,7 @@ test("new conversation returns an id and the fake still sees the raw message", a
   const calls: CallLog[] = [];
   const store = new SqliteConversationStore(":memory:");
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -460,7 +482,7 @@ test("new conversation returns an id and the fake still sees the raw message", a
 test("invalid conversationId is 400 and does not call the fake", async () => {
   const calls: CallLog[] = [];
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -497,7 +519,7 @@ test("first turn reports one history message and the labeled prompt", async () =
   const calls: CallLog[] = [];
   const store = new SqliteConversationStore(":memory:");
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -542,7 +564,7 @@ test("prompt keeps only the 8 newest messages", async () => {
     });
   }
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -579,7 +601,7 @@ test("prompt keeps only the 8 newest messages", async () => {
 test("reflection counts historyMessages once", async () => {
   const localCritic = { count: 0 };
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", []),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -625,7 +647,7 @@ test("unknown conversationId is 404 and does not run or persist", async () => {
   const calls: CallLog[] = [];
   const store = new SqliteConversationStore(":memory:");
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -657,7 +679,7 @@ test("unknown conversationId is 404 and does not run or persist", async () => {
 test("unknown strategy wins over an unknown conversationId", async () => {
   const calls: CallLog[] = [];
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -685,7 +707,7 @@ test("blank message does not persist and skips the strategy", async () => {
   const store = new SqliteConversationStore(":memory:");
   const existingId = store.create();
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -722,7 +744,16 @@ test("blank message does not persist and skips the strategy", async () => {
       message: "   ",
       strategy: "nope",
     });
-    assert.equal(unknownStrategy.status, 422);
+    assert.equal(unknownStrategy.status, 200);
+    assert.equal(unknownStrategy.json.answer, EMPTY_INPUT_ANSWER);
+    const blankTrace = unknownStrategy.json.trace as TraceEvent[];
+    assert.equal(blankTrace.length, 1);
+    assert.equal(blankTrace[0]?.type, "answer");
+    assert.equal(blankTrace[0]?.node, "response");
+    assert.equal(
+      blankTrace.some((event) => event.type === "route"),
+      false,
+    );
     assert.equal(calls.length, 0);
     assert.equal(countTable(store, "messages"), 0);
   } finally {
@@ -733,7 +764,7 @@ test("blank message does not persist and skips the strategy", async () => {
 test("timeout does not create a conversation", async () => {
   const store = new SqliteConversationStore(":memory:");
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeNeverSettling("react"),
         "plan-and-execute": makeNeverSettling("plan-and-execute"),
@@ -764,7 +795,7 @@ test("POST /chat with userId injects recalled memory into the prompt", async () 
   });
   await memory.remember("plantonista-42", fact);
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -799,7 +830,7 @@ test("POST /chat without userId keeps history-only prompt", async () => {
   });
   await memory.remember("alguem", "fato secreto");
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -823,7 +854,7 @@ test("POST /chat without userId keeps history-only prompt", async () => {
 test("invalid userId is 400 and does not call the fake", async () => {
   const calls: CallLog[] = [];
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -859,7 +890,7 @@ test("blank message with userId skips recall side effects", async () => {
     .prepare(`SELECT COUNT(*) AS c FROM memories`)
     .get() as { c: number };
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -901,7 +932,7 @@ test("POST /chat with userId and durable stub remembers after response", async (
     "prefiro o cluster azul para pagamentos": unitAt(3),
   });
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -933,7 +964,7 @@ test("POST /chat with userId and durable stub remembers after response", async (
 test("POST /chat without userId does not call learning extractor", async () => {
   const extractCalls: string[] = [];
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", []),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -966,7 +997,7 @@ test("learning remember rejection still returns 200", async () => {
     throw new Error("async remember failed");
   };
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", []),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -998,7 +1029,7 @@ test("learning remember rejection still returns 200", async () => {
 test("200 metrics include promptTokens and contextBreakdown", async () => {
   const calls: CallLog[] = [];
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls, "react", 99),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -1020,8 +1051,9 @@ test("200 metrics include promptTokens and contextBreakdown", async () => {
       promptTokens: number;
       contextBreakdown: { history: number; memory: number; summary: number };
     };
-    assert.equal(metrics.promptTokens, 99);
-    assert.equal(typeof metrics.llmCalls, "number");
+    // fake strategy promptTokens 99 + injected router 3
+    assert.equal(metrics.promptTokens, 102);
+    assert.equal(metrics.llmCalls, 1);
     assert.equal(typeof metrics.latencyMs, "number");
     assert.equal(typeof metrics.historyMessages, "number");
     assert.equal(typeof metrics.contextBreakdown.history, "number");
@@ -1037,7 +1069,7 @@ test("200 metrics include promptTokens and contextBreakdown", async () => {
 
 test("blank message reports zero promptTokens and zero breakdown", async () => {
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", []),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -1075,7 +1107,7 @@ test("contextBreakdown.memory matches estimateTokens of recall block", async () 
   });
   await memory.remember("plantonista-42", fact);
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -1131,7 +1163,7 @@ test("seeded summary enters prompt and contextBreakdown.summary", async () => {
   store.upsertSummary(id, "decisão: abrir INC-9", 2);
   const summaryBlock = renderSummaryPrompt("decisão: abrir INC-9");
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -1162,7 +1194,7 @@ test("seeded summary enters prompt and contextBreakdown.summary", async () => {
     store.upsertSummary(other, "resumo-secreto-B", 1);
     const secondCalls: CallLog[] = [];
     const startedB = await listen(
-      createApp({
+      testApp({
         registry: {
           react: makeFake("react", secondCalls),
           "plan-and-execute": makeFake("plan-and-execute", []),
@@ -1204,7 +1236,7 @@ test("summarizer runs only when 8 messages leave the window", async () => {
   }
   // 14 msgs → outside window 8 = 6 pending; one more turn (+2) → 16 total, 8 pending
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", calls),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -1237,6 +1269,10 @@ test("summarizer runs only when 8 messages leave the window", async () => {
     assert.equal(
       trace.find((event) => event.type === "summarize")?.content,
       summary!.text,
+    );
+    assert.equal(
+      trace.find((event) => event.type === "summarize")?.node,
+      "response",
     );
 
     const mid = await postJson(started.baseUrl, {
@@ -1285,7 +1321,7 @@ test("summarizer soft-fail leaves prior summary and omits summarize event", asyn
     },
   };
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", []),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -1323,7 +1359,7 @@ test("blank message does not call summarizer", async () => {
     });
   }
   const started = await listen(
-    createApp({
+    testApp({
       registry: {
         react: makeFake("react", []),
         "plan-and-execute": makeFake("plan-and-execute", []),
@@ -1341,6 +1377,148 @@ test("blank message does not call summarizer", async () => {
     });
     assert.equal(result.status, 200);
     assert.equal(summarizeCalls.length, 0);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("omitted strategy emits route event from injected router", async () => {
+  const result = await postJson(baseUrl, { message: "ver rota" });
+  assert.equal(result.status, 200);
+  const trace = result.json.trace as TraceEvent[];
+  assert.equal(trace[0]?.type, "route");
+  if (trace[0]?.type === "route") {
+    assert.equal(trace[0].route, "react");
+    assert.equal(trace[0].override, false);
+    assert.equal(trace[0].node, "router");
+    assert.equal(trace[0].reason, "rota-de-teste");
+  }
+  assert.ok(trace.every((event) => event.node !== undefined));
+  const metrics = result.json.metrics as { llmCalls: number; promptTokens: number };
+  assert.ok(metrics.llmCalls >= 1);
+  assert.ok(metrics.promptTokens >= 3);
+});
+
+test("strategy override marks route event and skips router", async () => {
+  let decideCalls = 0;
+  const router: ProductionRouter = {
+    async decide() {
+      decideCalls += 1;
+      return {
+        route: "react",
+        reason: "nao-deve",
+        llmCalls: 1,
+        promptTokens: 9,
+      };
+    },
+  };
+  const calls: CallLog[] = [];
+  const started = await listen(
+    testApp({
+      registry: {
+        react: makeFake("react", []),
+        "plan-and-execute": makeFake("plan-and-execute", calls),
+      },
+      router,
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
+      learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "forcar pe",
+      strategy: "plan-and-execute",
+    });
+    assert.equal(result.status, 200);
+    assert.equal(decideCalls, 0);
+    assert.equal(calls.length, 1);
+    const trace = result.json.trace as TraceEvent[];
+    assert.equal(trace[0]?.type, "route");
+    if (trace[0]?.type === "route") {
+      assert.equal(trace[0].override, true);
+      assert.equal(trace[0].reason, OVERRIDE_REASON);
+      assert.equal(trace[0].route, "plan-and-execute");
+    }
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("strategy reflection is accepted as override", async () => {
+  const calls: CallLog[] = [];
+  const started = await listen(
+    testApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      critic,
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
+      learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "revisar resposta",
+      strategy: "reflection",
+    });
+    assert.equal(result.status, 200);
+    assert.equal(calls.length, 1);
+    const trace = result.json.trace as TraceEvent[];
+    assert.equal(trace[0]?.type, "route");
+    if (trace[0]?.type === "route") {
+      assert.equal(trace[0].route, "reflection");
+      assert.equal(trace[0].override, true);
+    }
+    assert.ok(
+      trace
+        .filter((event) => event.type !== "route")
+        .every((event) => event.node === "reflection"),
+    );
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("invalid automatic route returns 502", async () => {
+  const calls: CallLog[] = [];
+  const started = await listen(
+    testApp({
+      registry: {
+        react: makeFake("react", calls),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      router: {
+        async decide() {
+          return {
+            route: "react",
+            reason: " ",
+            llmCalls: 1,
+            promptTokens: 1,
+          };
+        },
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
+      learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, { message: "falha rota" });
+    assert.equal(result.status, 502);
+    assert.equal(result.json.message, "Não foi possível decidir a rota.");
+    assert.equal(result.json.answer, undefined);
+    assert.equal(result.json.trace, undefined);
+    assert.equal(result.json.metrics, undefined);
+    assert.equal(calls.length, 0);
   } finally {
     await closeServer(started.server);
   }

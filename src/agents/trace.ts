@@ -129,6 +129,10 @@ export function formatTrace(events: TraceEvent[]): string {
           return `[critique]\n${event.content}`;
         case "answer":
           return `[answer]\n${event.content}`;
+        case "summarize":
+          return `[summarize]\n${event.content}`;
+        case "route":
+          return `[route]\nroute=${event.route}\nreason=${event.reason}\noverride=${event.override}`;
       }
     })
     .join("\n\n");

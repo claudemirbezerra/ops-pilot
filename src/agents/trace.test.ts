@@ -18,6 +18,13 @@ const fixture: TraceEvent[] = [
   },
   { type: "critique", content: "Falta abrir o incidente." },
   { type: "answer", content: "Há 3 alertas em disparo." },
+  {
+    type: "route",
+    route: "react",
+    reason: "consulta direta",
+    override: false,
+    node: "router",
+  },
 ];
 
 test("formatTrace é determinístico e inclui tool e args na ação", () => {
@@ -33,4 +40,7 @@ test("formatTrace é determinístico e inclui tool e args na ação", () => {
   assert.match(first, /\[plan\]/);
   assert.match(first, /\[critique\]/);
   assert.match(first, /\[answer\]/);
+  assert.match(first, /\[route\]/);
+  assert.match(first, /route=react/);
+  assert.match(first, /override=false/);
 });
