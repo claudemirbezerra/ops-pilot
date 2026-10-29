@@ -3,10 +3,10 @@ import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import { z } from "zod";
 
 import { readPromptTokens } from "../context/tokens.js";
+import { ModelUnavailableError } from "../domain/errors.js";
 import type { MemoryStore } from "../domain/types.js";
-import { createModel } from "./model.js";
+import { buildFallbackEvent, createModel } from "./model.js";
 import {
-  MODEL_UNAVAILABLE_ANSWER,
   buildEmptyInputResult,
   buildLimitReachedAnswer,
   isBlankInput,
@@ -300,22 +300,28 @@ function createPlanExecuteGraph(
     .addEdge("planner", "executor");
 
   if (noReplanner) {
-    return graph
-      .addConditionalEdges("executor", shouldContinue, {
+    return {
+      model,
+      graph: graph
+        .addConditionalEdges("executor", shouldContinue, {
+          executor: "executor",
+          [END]: END,
+        })
+        .compile(),
+    };
+  }
+
+  return {
+    model,
+    graph: graph
+      .addNode("replanner", replanner)
+      .addEdge("executor", "replanner")
+      .addConditionalEdges("replanner", shouldContinue, {
         executor: "executor",
         [END]: END,
       })
-      .compile();
-  }
-
-  return graph
-    .addNode("replanner", replanner)
-    .addEdge("executor", "replanner")
-    .addConditionalEdges("replanner", shouldContinue, {
-      executor: "executor",
-      [END]: END,
-    })
-    .compile();
+      .compile(),
+  };
 }
 
 export const planAndExecuteStrategy: ReasoningStrategy = {
@@ -329,7 +335,7 @@ export const planAndExecuteStrategy: ReasoningStrategy = {
     return runWithMetrics(async () => {
       try {
         const store = options.opsStore ?? createDefaultOpsStore();
-        const graph = createPlanExecuteGraph(store, {
+        const { graph, model } = createPlanExecuteGraph(store, {
           noReplanner: options.noReplanner,
           userId: options.userId,
           memoryStore: options.memoryStore,
@@ -360,22 +366,37 @@ export const planAndExecuteStrategy: ReasoningStrategy = {
               : finalState.done.at(-1)?.[1] || "Plano concluído sem resposta explícita.";
         }
 
+        let trace = ensureAnswerEvent(finalState.trace, answer);
+        if (model.didFallback()) {
+          const to = model.getFallbackModelId();
+          if (to !== undefined) {
+            trace = [
+              buildFallbackEvent({
+                from: model.getPrimaryModelId(),
+                to,
+                node: "plan-and-execute",
+              }),
+              ...trace,
+            ];
+          }
+        }
+
         return {
           answer,
-          trace: ensureAnswerEvent(finalState.trace, answer),
+          trace,
           metrics: {
             llmCalls: finalState.llmCalls,
             promptTokens: finalState.promptTokens,
+            ...(model.getModelUsed() !== undefined
+              ? { modelUsed: model.getModelUsed() }
+              : {}),
           },
         };
       } catch (error: unknown) {
-        const detail = error instanceof Error ? error.message : "erro desconhecido";
-        const answer = `${MODEL_UNAVAILABLE_ANSWER} (${detail})`;
-        return {
-          answer,
-          trace: [{ type: "answer" as const, content: answer }],
-          metrics: { llmCalls: 0, promptTokens: 0 },
-        };
+        if (error instanceof ModelUnavailableError) {
+          throw error;
+        }
+        throw new ModelUnavailableError();
       }
     });
   },

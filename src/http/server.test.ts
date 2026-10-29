@@ -19,7 +19,7 @@ import {
   type TraceEvent,
 } from "../agents/strategy.js";
 import { estimateTokens } from "../context/tokens.js";
-import { ChatTimeoutError } from "../domain/errors.js";
+import { ChatTimeoutError, ModelUnavailableError } from "../domain/errors.js";
 import type { Embedder } from "../domain/types.js";
 import { SqliteMemoryStore } from "../memory/memory-store.js";
 import { EMBEDDING_DIMS } from "../memory/similarity.js";
@@ -1519,6 +1519,96 @@ test("invalid automatic route returns 502", async () => {
     assert.equal(result.json.trace, undefined);
     assert.equal(result.json.metrics, undefined);
     assert.equal(calls.length, 0);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("ModelUnavailableError returns 503 without answer/trace/metrics", async () => {
+  const unavailable: ReasoningStrategy = {
+    name: "react",
+    async run() {
+      throw new ModelUnavailableError();
+    },
+  };
+  const started = await listen(
+    testApp({
+      registry: {
+        react: unavailable,
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      router: fixedRouter("react"),
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
+      learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, { message: "preciso do modelo" });
+    assert.equal(result.status, 503);
+    assert.equal(result.json.message, "Modelo indisponível.");
+    assert.equal(result.json.answer, undefined);
+    assert.equal(result.json.trace, undefined);
+    assert.equal(result.json.metrics, undefined);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("200 preserves metrics.modelUsed and fallback trace event", async () => {
+  const withFallback: ReasoningStrategy = {
+    name: "react",
+    async run(message: string): Promise<StrategyResult> {
+      return {
+        answer: `ok:${message}`,
+        trace: [
+          {
+            type: "fallback",
+            from: "model-a",
+            to: "model-b",
+            node: "react",
+          },
+          { type: "answer", content: `ok:${message}` },
+        ],
+        metrics: {
+          llmCalls: 1,
+          latencyMs: 1,
+          promptTokens: 2,
+          modelUsed: "model-b",
+        },
+      };
+    },
+  };
+  const started = await listen(
+    testApp({
+      registry: {
+        react: withFallback,
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      router: fixedRouter("react", "teste", { llmCalls: 0, promptTokens: 0 }),
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
+      learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
+    }),
+  );
+
+  try {
+    const result = await postJson(started.baseUrl, { message: "com fallback" });
+    assert.equal(result.status, 200);
+    const metrics = result.json.metrics as { modelUsed?: string };
+    assert.equal(metrics.modelUsed, "model-b");
+    const trace = result.json.trace as TraceEvent[];
+    assert.ok(
+      trace.some(
+        (event) =>
+          event.type === "fallback" &&
+          event.from === "model-a" &&
+          event.to === "model-b",
+      ),
+    );
   } finally {
     await closeServer(started.server);
   }

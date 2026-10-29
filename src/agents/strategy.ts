@@ -39,6 +39,12 @@ export type TraceEvent =
       reason: string;
       override: boolean;
       node?: TraceNode;
+    }
+  | {
+      type: "fallback";
+      from: string;
+      to: string;
+      node?: TraceNode;
     };
 
 export type Metrics = {
@@ -46,6 +52,8 @@ export type Metrics = {
   latencyMs: number;
   /** Soma real de prompt tokens das chamadas ao modelo neste resultado. */
   promptTokens: number;
+  /** Identificador do modelo que atendeu (omitido se não houve consulta). */
+  modelUsed?: string;
 };
 
 export type StrategyResult = {

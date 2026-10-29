@@ -23,6 +23,7 @@ import {
   ConversationNotFoundError,
   EmbeddingUnavailableError,
   InvalidRouteError,
+  ModelUnavailableError,
   UnknownStrategyError,
 } from "../domain/errors.js";
 
@@ -132,6 +133,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
         return;
       }
       if (error instanceof EmbeddingUnavailableError) {
+        res.status(503).json({ message: error.message });
+        return;
+      }
+      if (error instanceof ModelUnavailableError) {
         res.status(503).json({ message: error.message });
         return;
       }

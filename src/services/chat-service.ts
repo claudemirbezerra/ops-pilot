@@ -233,6 +233,9 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
         llmCalls: result.metrics.llmCalls,
         latencyMs: result.metrics.latencyMs,
         promptTokens: result.metrics.promptTokens,
+        ...(result.metrics.modelUsed !== undefined
+          ? { modelUsed: result.metrics.modelUsed }
+          : {}),
         historyMessages: window.length,
         contextBreakdown: {
           history: estimateTokens(historyForBreakdown),

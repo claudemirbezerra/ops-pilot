@@ -101,6 +101,7 @@ const ProductionState = Annotation.Root({
   trace: Annotation<TraceEvent[]>,
   llmCalls: Annotation<number>,
   promptTokens: Annotation<number>,
+  modelUsed: Annotation<string | undefined>,
 });
 
 type ProductionStateType = typeof ProductionState.State;
@@ -128,6 +129,7 @@ export type RunProductionGraphResult = {
     llmCalls: number;
     promptTokens: number;
     latencyMs: number;
+    modelUsed?: string;
   };
 };
 
@@ -211,6 +213,7 @@ function createProductionGraph(deps: {
       trace: [...state.trace, ...stampTrace(result.trace, route)],
       llmCalls: state.llmCalls + result.metrics.llmCalls,
       promptTokens: state.promptTokens + result.metrics.promptTokens,
+      modelUsed: result.metrics.modelUsed ?? state.modelUsed,
     };
   }
 
@@ -297,6 +300,7 @@ export async function runProductionGraph(
     trace: [],
     llmCalls: 0,
     promptTokens: 0,
+    modelUsed: undefined,
   });
 
   if (!finalState.built) {
@@ -311,6 +315,9 @@ export async function runProductionGraph(
       llmCalls: finalState.llmCalls,
       promptTokens: finalState.promptTokens,
       latencyMs: Date.now() - started,
+      ...(finalState.modelUsed !== undefined
+        ? { modelUsed: finalState.modelUsed }
+        : {}),
     },
   };
 }

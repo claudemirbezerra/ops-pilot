@@ -1,4 +1,4 @@
-# Tasks: Resiliência de modelo
+﻿# Tasks: Resiliência de modelo
 
 **Input**: Design documents from `/specs/014-resiliencia-modelo/`
 
@@ -24,8 +24,8 @@
 
 **Purpose**: Esqueleto de testes da fábrica; sem mudar comportamento de produção ainda
 
-- [ ] T001 [P] Create `src/agents/model.test.ts` with `node:test` importing `createModel` / helpers to be added (`test.todo` or failing placeholders OK) per `contracts/model-factory.md`
-- [ ] T002 Confirm no new npm dependency is required (`@langchain/core` already exposes `withRetry` / `withFallbacks`); note in `src/agents/model.ts` header comment only if useful — do not add packages to `package.json`
+- [X] T001 [P] Create `src/agents/model.test.ts` with `node:test` importing `createModel` / helpers to be added (`test.todo` or failing placeholders OK) per `contracts/model-factory.md`
+- [X] T002 Confirm no new npm dependency is required (`@langchain/core` already exposes `withRetry` / `withFallbacks`); note in `src/agents/model.ts` header comment only if useful — do not add packages to `package.json`
 
 **Checkpoint**: Arquivo de teste da fábrica existe; typecheck do restante intacto
 
@@ -37,12 +37,12 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 [P] Add `ModelUnavailableError` class in `src/domain/errors.ts` extending `DomainError` with default message exactly `Modelo indisponível.`
-- [ ] T004 [P] Extend `TraceEvent` in `src/agents/strategy.ts` with variant `{ type: "fallback"; from: string; to: string; node?: TraceNode }` and extend `Metrics` with optional `modelUsed?: string` (omit when no model call; never empty string) per `data-model.md`
-- [ ] T005 [P] Update `formatTrace` in `src/agents/trace.ts` to print a `[fallback]` branch (`from`, `to`) so the new event is not omitted; leave other branches unchanged
-- [ ] T006 Extend `ModelEnv` in `src/agents/model.ts` with optional `OPENROUTER_MODEL_FALLBACK?: string` and implement pure `resolveFallbackModel(env): string | undefined` — `undefined` / `""` / whitespace-only → `undefined`; otherwise trimmed string (may equal primary) per `contracts/model-env.md`
-- [ ] T007 Replace placeholders in `src/agents/model.test.ts` with cases for `resolveFallbackModel`: absent → `undefined`; `""` / `"   "` → `undefined`; `"openai/gpt-4o-mini"` → that id; run `node --import tsx --test src/agents/model.test.ts` until green for these cases
-- [ ] T008 Run `npm run typecheck` until green after T003–T007 (call sites that construct `Metrics` / `TraceEvent` literals remain valid with optional fields)
+- [X] T003 [P] Add `ModelUnavailableError` class in `src/domain/errors.ts` extending `DomainError` with default message exactly `Modelo indisponível.`
+- [X] T004 [P] Extend `TraceEvent` in `src/agents/strategy.ts` with variant `{ type: "fallback"; from: string; to: string; node?: TraceNode }` and extend `Metrics` with optional `modelUsed?: string` (omit when no model call; never empty string) per `data-model.md`
+- [X] T005 [P] Update `formatTrace` in `src/agents/trace.ts` to print a `[fallback]` branch (`from`, `to`) so the new event is not omitted; leave other branches unchanged
+- [X] T006 Extend `ModelEnv` in `src/agents/model.ts` with optional `OPENROUTER_MODEL_FALLBACK?: string` and implement pure `resolveFallbackModel(env): string | undefined` — `undefined` / `""` / whitespace-only → `undefined`; otherwise trimmed string (may equal primary) per `contracts/model-env.md`
+- [X] T007 Replace placeholders in `src/agents/model.test.ts` with cases for `resolveFallbackModel`: absent → `undefined`; `""` / `"   "` → `undefined`; `"openai/gpt-4o-mini"` → that id; run `node --import tsx --test src/agents/model.test.ts` until green for these cases
+- [X] T008 Run `npm run typecheck` until green after T003–T007 (call sites that construct `Metrics` / `TraceEvent` literals remain valid with optional fields)
 
 **Checkpoint**: Tipos, erro, parse de env e formatTrace prontos — US1 pode compor resiliência
 
@@ -58,14 +58,14 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T009 [P] [US1] In `src/agents/model.test.ts`, add failing case: injectable `composeResilientModel` (or equivalent) with primary that always rejects and reserve that resolves → invoke succeeds; reserve call count === 1; primary attempted `MODEL_MAX_RETRIES + 1` times before reserve
-- [ ] T010 [P] [US1] In `src/agents/model.test.ts`, add failing case: primary resolves on first try with reserve configured → reserve call count === 0
+- [X] T009 [P] [US1] In `src/agents/model.test.ts`, add failing case: injectable `composeResilientModel` (or equivalent) with primary that always rejects and reserve that resolves → invoke succeeds; reserve call count === 1; primary attempted `MODEL_MAX_RETRIES + 1` times before reserve
+- [X] T010 [P] [US1] In `src/agents/model.test.ts`, add failing case: primary resolves on first try with reserve configured → reserve call count === 0
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Implement internal `composeResilientModel` in `src/agents/model.ts`: build `ChatOpenAI` (or injectable runnables in tests) with `maxRetries: 0`; `primary.withRetry({ stopAfterAttempt: MODEL_MAX_RETRIES + 1 })`; if reserve present, `withFallbacks([reserve])` per `research.md` Decisão 2 and `contracts/model-factory.md`
-- [ ] T012 [US1] Wire `createModel` / `createCountingModel` in `src/agents/model.ts` to return the composed runnable (counting wrapper still enforces `maxIterations` and token counts); keep `MissingModelConfigError` when apiKey/primary missing; do not invent a reserve when env fallback is absent
-- [ ] T013 [US1] Run US1 tests + `npm run typecheck` until green; fix any `createReactAgent` / `withStructuredOutput` type breakages with the minimal adapter documented in `research.md` Decisão 4 (structured helper may wait until polish if router still typechecks)
+- [X] T011 [US1] Implement internal `composeResilientModel` in `src/agents/model.ts`: build `ChatOpenAI` (or injectable runnables in tests) with `maxRetries: 0`; `primary.withRetry({ stopAfterAttempt: MODEL_MAX_RETRIES + 1 })`; if reserve present, `withFallbacks([reserve])` per `research.md` Decisão 2 and `contracts/model-factory.md`
+- [X] T012 [US1] Wire `createModel` / `createCountingModel` in `src/agents/model.ts` to return the composed runnable (counting wrapper still enforces `maxIterations` and token counts); keep `MissingModelConfigError` when apiKey/primary missing; do not invent a reserve when env fallback is absent
+- [X] T013 [US1] Run US1 tests + `npm run typecheck` until green; fix any `createReactAgent` / `withStructuredOutput` type breakages with the minimal adapter documented in `research.md` Decisão 4 (structured helper may wait until polish if router still typechecks)
 
 **Checkpoint**: MVP — falha do principal com reserva configurado ainda responde; principal saudável não chama reserva
 
@@ -81,13 +81,13 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T014 [P] [US2] In `src/agents/model.test.ts`, add failing case: `createModel` / compose with env lacking `OPENROUTER_MODEL_FALLBACK` (or whitespace) and failing primary → throws `ModelUnavailableError` (or rejects) with **zero** reserve invocations
-- [ ] T015 [P] [US2] In `src/agents/model.test.ts`, add failing case: primary id `model-a`, fallback env `model-b`, primary fails / reserve ok → session or return path reports used model id exactly `model-b` (not `model-a`)
+- [X] T014 [P] [US2] In `src/agents/model.test.ts`, add failing case: `createModel` / compose with env lacking `OPENROUTER_MODEL_FALLBACK` (or whitespace) and failing primary → throws `ModelUnavailableError` (or rejects) with **zero** reserve invocations
+- [X] T015 [P] [US2] In `src/agents/model.test.ts`, add failing case: primary id `model-a`, fallback env `model-b`, primary fails / reserve ok → session or return path reports used model id exactly `model-b` (not `model-a`)
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Ensure `createModel` / `createCountingModel` in `src/agents/model.ts` call `resolveFallbackModel(env)` and pass the resolved id into composition; when `undefined`, compose retry-only primary (FR-008)
-- [ ] T017 [US2] Run US2 tests + `npm run typecheck` until green
+- [X] T016 [US2] Ensure `createModel` / `createCountingModel` in `src/agents/model.ts` call `resolveFallbackModel(env)` and pass the resolved id into composition; when `undefined`, compose retry-only primary (FR-008)
+- [X] T017 [US2] Run US2 tests + `npm run typecheck` until green
 
 **Checkpoint**: Reserva só existe quando a env traz id não vazio
 
@@ -103,16 +103,16 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T018 [P] [US3] In `src/agents/model.test.ts`, add failing cases: after successful fallback, `buildFallbackEvent` / session yields `{ type: "fallback", from: primary, to: reserve }` and `getModelUsed() === reserve`; after primary-only success, `didFallback() === false` and `getModelUsed() === primary`
-- [ ] T019 [P] [US3] In `src/agents/trace.test.ts`, add case that `formatTrace` includes a `[fallback]` section for a fixture event with `from`/`to`
-- [ ] T020 [P] [US3] In `src/http/server.test.ts`, add failing case: fake strategy returns 200 payload with `metrics.modelUsed` and a `fallback` trace event → response JSON preserves both (no strip in `runChat` / server)
+- [X] T018 [P] [US3] In `src/agents/model.test.ts`, add failing cases: after successful fallback, `buildFallbackEvent` / session yields `{ type: "fallback", from: primary, to: reserve }` and `getModelUsed() === reserve`; after primary-only success, `didFallback() === false` and `getModelUsed() === primary`
+- [X] T019 [P] [US3] In `src/agents/trace.test.ts`, add case that `formatTrace` includes a `[fallback]` section for a fixture event with `from`/`to`
+- [X] T020 [P] [US3] In `src/http/server.test.ts`, add failing case: fake strategy returns 200 payload with `metrics.modelUsed` and a `fallback` trace event → response JSON preserves both (no strip in `runChat` / server)
 
 ### Implementation for User Story 3
 
-- [ ] T021 [US3] Add observation wrappers / session getters on the resilient model in `src/agents/model.ts` (`getModelUsed`, `didFallback`, pure `buildFallbackEvent({ from, to, node? })`) per `research.md` Decisão 3 and `data-model.md`
-- [ ] T022 [US3] In strategy paths that use the factory (`src/agents/react.ts`, and plan-and-execute / production path as needed), after successful model work: set `metrics.modelUsed` from session; if `didFallback()`, append `buildFallbackEvent` to `trace` (with appropriate `node` when known)
-- [ ] T023 [US3] Preserve `metrics.modelUsed` when aggregating in `src/services/chat-service.ts` (and `src/agents/production-graph.ts` if metrics are merged there); blank/`buildEmptyInputResult` path must **omit** `modelUsed` and must not emit `fallback`
-- [ ] T024 [US3] Run US3 tests + `npm run typecheck` until green
+- [X] T021 [US3] Add observation wrappers / session getters on the resilient model in `src/agents/model.ts` (`getModelUsed`, `didFallback`, pure `buildFallbackEvent({ from, to, node? })`) per `research.md` Decisão 3 and `data-model.md`
+- [X] T022 [US3] In strategy paths that use the factory (`src/agents/react.ts`, and plan-and-execute / production path as needed), after successful model work: set `metrics.modelUsed` from session; if `didFallback()`, append `buildFallbackEvent` to `trace` (with appropriate `node` when known)
+- [X] T023 [US3] Preserve `metrics.modelUsed` when aggregating in `src/services/chat-service.ts` (and `src/agents/production-graph.ts` if metrics are merged there); blank/`buildEmptyInputResult` path must **omit** `modelUsed` and must not emit `fallback`
+- [X] T024 [US3] Run US3 tests + `npm run typecheck` until green
 
 **Checkpoint**: Plantonista vê quem respondeu e se houve troca
 
@@ -128,15 +128,15 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T025 [P] [US4] In `src/agents/model.test.ts`, add failing case: primary and reserve both reject (and case: no reserve + primary rejects) → throws `ModelUnavailableError` with message `Modelo indisponível.`
-- [ ] T026 [P] [US4] In `src/http/server.test.ts`, add failing case: injected registry/strategy throws `ModelUnavailableError` → status 503, body `{ message: "Modelo indisponível." }`, no `answer`/`trace`/`metrics` keys
+- [X] T025 [P] [US4] In `src/agents/model.test.ts`, add failing case: primary and reserve both reject (and case: no reserve + primary rejects) → throws `ModelUnavailableError` with message `Modelo indisponível.`
+- [X] T026 [P] [US4] In `src/http/server.test.ts`, add failing case: injected registry/strategy throws `ModelUnavailableError` → status 503, body `{ message: "Modelo indisponível." }`, no `answer`/`trace`/`metrics` keys
 
 ### Implementation for User Story 4
 
-- [ ] T027 [US4] Ensure exhausted resilient invoke in `src/agents/model.ts` throws `ModelUnavailableError` (wrap underlying errors for logs if needed; do not leak stack in `message`)
-- [ ] T028 [US4] In `src/agents/react.ts` and `src/agents/plan-and-execute.ts`, rethrow `ModelUnavailableError` instead of returning soft `MODEL_UNAVAILABLE_ANSWER` 200 for that case; align `src/agents/reflection.ts` / tests that assumed soft unavailable answer where the new contract applies
-- [ ] T029 [US4] Map `ModelUnavailableError` → `res.status(503).json({ message: error.message })` in `src/http/server.ts` (alongside existing embedding 503); keep `MissingModelConfigError` behavior unchanged
-- [ ] T030 [US4] Run US4 tests + `npm run typecheck` until green
+- [X] T027 [US4] Ensure exhausted resilient invoke in `src/agents/model.ts` throws `ModelUnavailableError` (wrap underlying errors for logs if needed; do not leak stack in `message`)
+- [X] T028 [US4] In `src/agents/react.ts` and `src/agents/plan-and-execute.ts`, rethrow `ModelUnavailableError` instead of returning soft `MODEL_UNAVAILABLE_ANSWER` 200 for that case; align `src/agents/reflection.ts` / tests that assumed soft unavailable answer where the new contract applies
+- [X] T029 [US4] Map `ModelUnavailableError` → `res.status(503).json({ message: error.message })` in `src/http/server.ts` (alongside existing embedding 503); keep `MissingModelConfigError` behavior unchanged
+- [X] T030 [US4] Run US4 tests + `npm run typecheck` until green
 
 **Checkpoint**: Indisponibilidade total é 503 observável, não resposta falsa
 
@@ -146,10 +146,10 @@
 
 **Purpose**: Roteador structured, suíte completa, quickstart
 
-- [ ] T031 [P] Add helper in `src/agents/model.ts` (e.g. `createStructuredModel`) applying `withStructuredOutput` per base chat then `withRetry` / `withFallbacks`, and switch `createLlmRouter` in `src/agents/production-graph.ts` to use it so router inherits resiliência without calling `withStructuredOutput` on the fallbacks wrapper
-- [ ] T032 [P] Update any broken unit tests under `src/agents/*.test.ts` / `src/http/server.test.ts` that still expect soft `MODEL_UNAVAILABLE_ANSWER` on total model failure
-- [ ] T033 Run full `npm run typecheck` and `npm test` until green
-- [ ] T034 Manually walk `specs/014-resiliencia-modelo/quickstart.md` checklist (unit factory table + HTTP 503 case); fix gaps if any assertion from the table is missing
+- [X] T031 [P] Add helper in `src/agents/model.ts` (e.g. `createStructuredModel`) applying `withStructuredOutput` per base chat then `withRetry` / `withFallbacks`, and switch `createLlmRouter` in `src/agents/production-graph.ts` to use it so router inherits resiliência without calling `withStructuredOutput` on the fallbacks wrapper
+- [X] T032 [P] Update any broken unit tests under `src/agents/*.test.ts` / `src/http/server.test.ts` that still expect soft `MODEL_UNAVAILABLE_ANSWER` on total model failure
+- [X] T033 Run full `npm run typecheck` and `npm test` until green
+- [X] T034 Manually walk `specs/014-resiliencia-modelo/quickstart.md` checklist (unit factory table + HTTP 503 case); fix gaps if any assertion from the table is missing
 
 ---
 

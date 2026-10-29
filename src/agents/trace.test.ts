@@ -44,3 +44,17 @@ test("formatTrace é determinístico e inclui tool e args na ação", () => {
   assert.match(first, /route=react/);
   assert.match(first, /override=false/);
 });
+
+test("formatTrace inclui evento fallback", () => {
+  const text = formatTrace([
+    {
+      type: "fallback",
+      from: "openai/gpt-4o",
+      to: "openai/gpt-4o-mini",
+      node: "react",
+    },
+  ]);
+  assert.match(text, /\[fallback\]/);
+  assert.match(text, /from=openai\/gpt-4o/);
+  assert.match(text, /to=openai\/gpt-4o-mini/);
+});

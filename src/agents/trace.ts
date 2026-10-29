@@ -133,6 +133,8 @@ export function formatTrace(events: TraceEvent[]): string {
           return `[summarize]\n${event.content}`;
         case "route":
           return `[route]\nroute=${event.route}\nreason=${event.reason}\noverride=${event.override}`;
+        case "fallback":
+          return `[fallback]\nfrom=${event.from}\nto=${event.to}`;
       }
     })
     .join("\n\n");

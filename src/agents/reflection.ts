@@ -1,3 +1,4 @@
+import { ModelUnavailableError } from "../domain/errors.js";
 import { createLlmCritic, type Critic, type CritiqueDecision } from "./critic.js";
 import { planAndExecuteStrategy } from "./plan-and-execute.js";
 import { reactStrategy } from "./react.js";
@@ -85,7 +86,15 @@ export function wrapWithReflection({
       let accumulatedTrace: TraceEvent[] = [];
       let llmCalls = 0;
       let promptTokens = 0;
+      let modelUsed: string | undefined;
       let lastAnswer = "";
+
+      const metricsOf = () => ({
+        llmCalls,
+        latencyMs: Date.now() - started,
+        promptTokens,
+        ...(modelUsed !== undefined ? { modelUsed } : {}),
+      });
 
       while (true) {
         const baseResult = await base.run(currentInput, {
@@ -93,6 +102,9 @@ export function wrapWithReflection({
         });
         llmCalls += baseResult.metrics.llmCalls;
         promptTokens += baseResult.metrics.promptTokens;
+        if (baseResult.metrics.modelUsed !== undefined) {
+          modelUsed = baseResult.metrics.modelUsed;
+        }
         accumulatedTrace = [...accumulatedTrace, ...baseResult.trace];
         lastAnswer = baseResult.answer;
 
@@ -100,11 +112,7 @@ export function wrapWithReflection({
           return {
             answer: lastAnswer,
             trace: ensureFinalAnswer(accumulatedTrace, lastAnswer),
-            metrics: {
-              llmCalls,
-              latencyMs: Date.now() - started,
-              promptTokens,
-            },
+            metrics: metricsOf(),
           };
         }
 
@@ -125,7 +133,10 @@ export function wrapWithReflection({
             ...accumulatedTrace,
             { type: "critique", content: formatCritiqueContent(decision) },
           ];
-        } catch {
+        } catch (error: unknown) {
+          if (error instanceof ModelUnavailableError) {
+            throw error;
+          }
           accumulatedTrace = [
             ...accumulatedTrace,
             { type: "critique", content: CRITIC_UNAVAILABLE_CONTENT },
@@ -133,11 +144,7 @@ export function wrapWithReflection({
           return {
             answer: lastAnswer,
             trace: ensureFinalAnswer(accumulatedTrace, lastAnswer),
-            metrics: {
-              llmCalls,
-              latencyMs: Date.now() - started,
-              promptTokens,
-            },
+            metrics: metricsOf(),
           };
         }
 
@@ -145,11 +152,7 @@ export function wrapWithReflection({
           return {
             answer: lastAnswer,
             trace: ensureFinalAnswer(accumulatedTrace, lastAnswer),
-            metrics: {
-              llmCalls,
-              latencyMs: Date.now() - started,
-              promptTokens,
-            },
+            metrics: metricsOf(),
           };
         }
 
@@ -157,11 +160,7 @@ export function wrapWithReflection({
           return {
             answer: lastAnswer,
             trace: ensureFinalAnswer(accumulatedTrace, lastAnswer),
-            metrics: {
-              llmCalls,
-              latencyMs: Date.now() - started,
-              promptTokens,
-            },
+            metrics: metricsOf(),
           };
         }
 

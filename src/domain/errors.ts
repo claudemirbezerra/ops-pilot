@@ -43,6 +43,12 @@ export class MemoryNotFoundError extends DomainError {}
 
 export class EmbeddingUnavailableError extends DomainError {}
 
+export class ModelUnavailableError extends DomainError {
+  constructor(message = "Modelo indisponível.") {
+    super(message);
+  }
+}
+
 export class UserIdRequiredError extends DomainError {
   constructor(
     message = "userId é obrigatório para esquecer preferências da memória.",

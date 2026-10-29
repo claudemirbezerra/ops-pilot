@@ -1,14 +1,14 @@
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 
+import { ModelUnavailableError } from "../domain/errors.js";
 import {
-  MODEL_UNAVAILABLE_ANSWER,
   buildEmptyInputResult,
   isBlankInput,
   runWithMetrics,
   type ReasoningStrategy,
   type StrategyOptions,
 } from "./strategy.js";
-import { createCountingModel } from "./model.js";
+import { buildFallbackEvent, createCountingModel } from "./model.js";
 import { createDefaultOpsStore } from "./store.js";
 import { createOpsTools } from "./tools.js";
 import {
@@ -27,9 +27,13 @@ export const reactStrategy: ReasoningStrategy = {
     }
 
     return runWithMetrics(async () => {
-      const { model, getLlmCalls, getPromptTokens } = createCountingModel(
-        options.maxIterations,
-      );
+      const {
+        model,
+        getLlmCalls,
+        getPromptTokens,
+        getModelUsed,
+        didFallback,
+      } = createCountingModel(options.maxIterations);
       const store = options.opsStore ?? createDefaultOpsStore();
       const { tools } = createOpsTools(store, {
         userId: options.userId,
@@ -49,7 +53,17 @@ export const reactStrategy: ReasoningStrategy = {
 
         const messages = result.messages ?? [];
         const answer = lastAnswer(messages, "");
-        const trace = ensureAnswerEvent(messagesToTrace(messages), answer);
+        let trace = ensureAnswerEvent(messagesToTrace(messages), answer);
+        if (didFallback()) {
+          const from = model.getPrimaryModelId();
+          const to = model.getFallbackModelId();
+          if (to !== undefined) {
+            trace = [
+              buildFallbackEvent({ from, to, node: "react" }),
+              ...trace,
+            ];
+          }
+        }
 
         return {
           answer,
@@ -57,20 +71,16 @@ export const reactStrategy: ReasoningStrategy = {
           metrics: {
             llmCalls: getLlmCalls() || countAiMessages(messages),
             promptTokens: getPromptTokens(),
+            ...(getModelUsed() !== undefined
+              ? { modelUsed: getModelUsed() }
+              : {}),
           },
         };
       } catch (error: unknown) {
-        const message =
-          error instanceof Error ? error.message : MODEL_UNAVAILABLE_ANSWER;
-        const answer = `${MODEL_UNAVAILABLE_ANSWER} (${message})`;
-        return {
-          answer,
-          trace: [{ type: "answer" as const, content: answer }],
-          metrics: {
-            llmCalls: getLlmCalls(),
-            promptTokens: getPromptTokens(),
-          },
-        };
+        if (error instanceof ModelUnavailableError) {
+          throw error;
+        }
+        throw new ModelUnavailableError();
       }
     });
   },
