@@ -11,6 +11,7 @@ import type {
   ApprovalStore,
   PendingApproval,
 } from "../domain/types.js";
+import { formatApprovalAnswer } from "./approval-answer.js";
 
 export type ResolveApprovalInput = {
   approvalId: string;
@@ -39,20 +40,20 @@ export async function resolveApproval(
 
   const priorTrace = pending.trace as TraceEvent[];
   let observation: string;
-  let answer: string;
 
   if (input.decision === "deny") {
     observation = `Negado pelo plantonista: ${pending.description}`;
-    answer = observation;
+  } else if (!requiresHumanApproval(pending.tool)) {
+    observation = `Ferramenta não gated após approve: ${pending.tool}`;
   } else {
-    if (!requiresHumanApproval(pending.tool)) {
-      observation = `Ferramenta não gated após approve: ${pending.tool}`;
-      answer = observation;
-    } else {
-      observation = await invokePendingTool(pending, input.opsStore);
-      answer = `Aprovado: ${pending.description}. Resultado: ${observation}`;
-    }
+    observation = await invokePendingTool(pending, input.opsStore);
   }
+
+  const answer = formatApprovalAnswer(
+    input.decision,
+    pending,
+    observation,
+  );
 
   const trace: TraceEvent[] = [
     ...priorTrace,

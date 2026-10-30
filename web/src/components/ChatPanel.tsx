@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { postChat } from "../lib/api";
 import { hasTraceEvents, type TraceEvent } from "../lib/trace";
 import { ApprovalCard } from "./ApprovalCard";
+import { MarkdownBody } from "./MarkdownBody";
 import { TracePanel } from "./TracePanel";
 
 type Turn = {
@@ -102,12 +103,12 @@ export function ChatPanel({ apiBase }: Props) {
             <li key={turn.id}>
               <article className="bubble user">
                 <h2 className="visually-hidden">Plantonista</h2>
-                <p>{turn.user}</p>
+                <p className="bubble-text">{turn.user}</p>
               </article>
               {turn.assistant ? (
                 <article className="bubble assistant">
                   <h2 className="visually-hidden">OpsPilot</h2>
-                  <p>{turn.assistant}</p>
+                  <MarkdownBody text={turn.assistant} />
                   {hasTraceEvents(turn.trace) ? (
                     <button
                       type="button"
@@ -133,15 +134,19 @@ export function ChatPanel({ apiBase }: Props) {
           apiBase={apiBase}
           onResolved={(answer) => {
             setPending(null);
+            const resolved =
+              answer.trim().length > 0
+                ? answer
+                : "Decisão aplicada, mas a API não devolveu detalhes do incidente.";
             setTurns((prev) => {
               const copy = [...prev];
               const last = copy[copy.length - 1];
               if (last) {
-                copy[copy.length - 1] = { ...last, assistant: answer };
+                copy[copy.length - 1] = { ...last, assistant: resolved };
               }
               return copy;
             });
-            setLive("Decisão aplicada.");
+            setLive("Incidente atualizado após a decisão.");
           }}
         />
       ) : null}
