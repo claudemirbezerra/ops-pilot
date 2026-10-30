@@ -32,5 +32,5 @@
 ## Notes
 
 - Stack Vite+React+TS e pasta `web/` ficam só em **Assumptions** (mandato do pedido); FRs descrevem comportamento e contratos (`/opspilot`, 202, CORS) alinhados ao domínio OpsPilot.
-- Validação: 1ª passagem — todos os itens OK; sem marcadores de clarificação.
-- Pronto para `/speckit-clarify` (opcional) ou `/speckit-plan`.
+- Pós-`/speckit-clarify` (2026-10-30): 5 clarificações integradas; checklist permanece 16/16.
+- Pronto para `/speckit-plan`.
