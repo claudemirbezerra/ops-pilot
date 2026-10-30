@@ -1,0 +1,55 @@
+---
+description: Design system para UI em web — hierarquia, espaçamento, estados, dark mode e a11y
+applyTo: "web/**"
+alwaysApply: false
+---
+
+# Design — web/**
+
+## Hierarquia visual
+- Uma ação primária por view; secundárias em outline/ghost.
+- Tipografia: `display` (página) → `title` (seção) → `body` → `caption`/`meta`. Não pular níveis.
+- Cor e peso reforçam hierarquia; não use tamanho sozinho.
+- Densidade operacional (alertas/incidentes): info crítica acima da dobra; metadados secundários abaixo ou em aside.
+
+## Escala de espaçamento
+Use tokens em rem (base 4px). Não invente valores intermediários.
+
+| Token | Valor | Uso |
+|-------|-------|-----|
+| `space-1` | 0.25rem | ícone ↔ label, gaps internos mínimos |
+| `space-2` | 0.5rem | padding compacto, chips |
+| `space-3` | 0.75rem | controles, list items |
+| `space-4` | 1rem | padding de card/seção |
+| `space-6` | 1.5rem | entre blocos relacionados |
+| `space-8` | 2rem | entre seções |
+| `space-12` | 3rem | respiro de página |
+
+Stack vertical com o mesmo token entre irmãos; tipografia e componentes não “apertam” com margin ad-hoc.
+
+## Estados vazios
+- Sempre: ícone discreto + título curto + 1 frase + CTA quando houver próxima ação.
+- Diferencie “ainda sem dados” de “filtro sem resultado” (CTA: limpar filtros vs. criar/abrir).
+- Não use ilustrações pesadas nem copy genérica (“Nada por aqui”).
+
+## Estados de erro
+- Inline no campo (validação); banner/alert na página (falha de operação); toast só para feedback transitório.
+- Mensagem: o que falhou + o que fazer. Sem stack traces na UI.
+- Erros recuperáveis incluem retry; erros de permissão apontam para quem pode ajudar.
+- Não esvazie a tela inteira se o restante ainda for útil — isole o bloco afetado.
+
+## Dark mode
+- Preferir tokens semânticos (`bg`, `surface`, `fg`, `muted`, `border`, `danger`, `warning`, `success`) via `light-dark()` ou variáveis por `[data-theme]` / `prefers-color-scheme`.
+- Contraste: texto body ≥ 4.5:1; UI grande/ícones ≥ 3:1. Evitar branco puro em fundos escuros e preto puro em claros.
+- Sombras mais sutis no dark; use bordas/elevação por superfície, não glow.
+- Status (sev/priority) mantêm matiz reconhecível nos dois temas; não dependa só de cor.
+
+## Acessibilidade
+- HTML semântico: `main`, `nav`, headings em ordem, `button` vs `a` corretos.
+- Foco visível em todos os interativos; não remova `outline` sem substituto equivalente.
+- Interativos ≥ 44×44px de área de toque; atalhos não são o único caminho.
+- Imagens decorativas: `alt=""`; informativas: `alt` descritivo. Ícones-só-ícone: `aria-label`.
+- Live regions (`aria-live`) para alertas novos e resultados de ação assíncrona.
+- Formulários: `label` associado; erros ligados com `aria-describedby` / `aria-invalid`.
+- Respeitar `prefers-reduced-motion`: animações opcionais e curtas.
+- Teclado: Tab/Shift+Tab, Enter/Space, Escape fecha overlays; foco preso em modais.
