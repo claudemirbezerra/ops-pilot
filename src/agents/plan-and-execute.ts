@@ -8,6 +8,7 @@ import type { MemoryStore } from "../domain/types.js";
 import {
   HumanApprovalRequiredError,
   describePendingApproval,
+  findApprovalError,
   requiresHumanApproval,
 } from "./approval-gate.js";
 import {
@@ -414,18 +415,19 @@ export const planAndExecuteStrategy: ReasoningStrategy = {
           },
         };
       } catch (error: unknown) {
-        if (error instanceof HumanApprovalRequiredError) {
+        const approval = findApprovalError(error);
+        if (approval) {
           return {
             answer: "Aguardando aprovação humana.",
-            trace: error.trace,
+            trace: approval.trace,
             pendingApproval: {
-              tool: error.tool,
-              args: error.args,
-              description: describePendingApproval(error.tool, error.args),
+              tool: approval.tool,
+              args: approval.args,
+              description: describePendingApproval(approval.tool, approval.args),
             },
             metrics: {
-              llmCalls: error.llmCalls,
-              promptTokens: error.promptTokens,
+              llmCalls: approval.llmCalls,
+              promptTokens: approval.promptTokens,
             },
           };
         }

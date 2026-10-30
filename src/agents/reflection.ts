@@ -108,6 +108,15 @@ export function wrapWithReflection({
         accumulatedTrace = [...accumulatedTrace, ...baseResult.trace];
         lastAnswer = baseResult.answer;
 
+        if (baseResult.pendingApproval !== undefined) {
+          return {
+            answer: lastAnswer,
+            trace: accumulatedTrace,
+            metrics: metricsOf(),
+            pendingApproval: baseResult.pendingApproval,
+          };
+        }
+
         if (!hasUsefulCandidate(baseResult.answer)) {
           return {
             answer: lastAnswer,

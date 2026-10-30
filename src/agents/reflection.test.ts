@@ -76,6 +76,47 @@ test("helpers: observations, feedback input, critique content, final answer", ()
   assert.ok(last?.type === "answer" && last.content === "há 3");
 });
 
+test("pendingApproval short-circuits without critic", async () => {
+  let criticCalls = 0;
+  const critic: Critic = {
+    async evaluate() {
+      criticCalls += 1;
+      return { approved: true, feedback: "", llmCalls: 0, promptTokens: 0 };
+    },
+  };
+  const base = mockBase(async () => ({
+    answer: "Aguardando aprovação humana.",
+    trace: [
+      {
+        type: "action",
+        tool: "open_incident",
+        args: { title: "t", service: "checkout", severity: "medium" },
+      },
+    ],
+    metrics: { llmCalls: 1, latencyMs: 1, promptTokens: 0 },
+    pendingApproval: {
+      tool: "open_incident",
+      args: { title: "t", service: "checkout", severity: "medium" },
+      description: 'Abrir incidente: "t" · checkout · medium',
+    },
+  }));
+
+  const wrapped = wrapWithReflection({
+    base,
+    critic,
+    name: "reflect:react",
+  });
+  const result = await wrapped.run("abra incidente no checkout", {
+    maxIterations: 4,
+    maxReflections: 2,
+  });
+
+  assert.equal(criticCalls, 0);
+  assert.ok(result.pendingApproval);
+  assert.equal(result.pendingApproval?.tool, "open_incident");
+  assert.equal(result.answer, "Aguardando aprovação humana.");
+});
+
 test("US1: approving critic yields critique then final answer; blank skips critic", async () => {
   let criticCalls = 0;
   const critic: Critic = {

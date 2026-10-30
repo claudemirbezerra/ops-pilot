@@ -1,18 +1,30 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ChatPanel } from "./components/ChatPanel";
 import { SettingsGear } from "./components/SettingsGear";
 import { getApiBaseUrl } from "./lib/storage";
 
+type Theme = "system" | "light" | "dark";
+
+function applyTheme(theme: Theme) {
+  const root = document.documentElement;
+  if (theme === "system") {
+    root.removeAttribute("data-theme");
+  } else {
+    root.setAttribute("data-theme", theme);
+  }
+}
+
 export default function App() {
   const [apiBase, setApiBase] = useState(() => getApiBaseUrl());
-  const [theme, setTheme] = useState<"system" | "light" | "dark">("system");
+  const [theme, setTheme] = useState<Theme>("system");
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   return (
-    <div
-      className="app-shell"
-      {...(theme === "system" ? {} : { "data-theme": theme })}
-    >
+    <div className="app-shell">
       <header className="topbar">
         <div>
           <p className="caption">OpsPilot</p>

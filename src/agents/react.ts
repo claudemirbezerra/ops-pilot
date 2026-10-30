@@ -1,10 +1,11 @@
 import { tool } from "@langchain/core/tools";
-import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import { createReactAgent, ToolNode } from "@langchain/langgraph/prebuilt";
 
 import { ModelUnavailableError } from "../domain/errors.js";
 import {
   HumanApprovalRequiredError,
   describePendingApproval,
+  findApprovalError,
   requiresHumanApproval,
 } from "./approval-gate.js";
 import {
@@ -53,23 +54,6 @@ function wrapToolsWithApprovalGate(
   }) as ReturnType<typeof createOpsTools>["tools"];
 }
 
-function findApprovalError(error: unknown): HumanApprovalRequiredError | null {
-  if (error instanceof HumanApprovalRequiredError) {
-    return error;
-  }
-  if (error && typeof error === "object" && "cause" in error) {
-    return findApprovalError((error as { cause: unknown }).cause);
-  }
-  if (error instanceof Error && error.message.includes("Aprovação humana necessária")) {
-    // LangGraph may wrap the error; try nested
-    const nested = (error as Error & { lc_error_code?: string }).cause;
-    if (nested) {
-      return findApprovalError(nested);
-    }
-  }
-  return null;
-}
-
 export const reactStrategy: ReasoningStrategy = {
   name: "react",
 
@@ -94,9 +78,11 @@ export const reactStrategy: ReasoningStrategy = {
       const tools = wrapToolsWithApprovalGate(rawTools);
 
       try {
+        // Default ToolNode swallows tool errors as ToolMessage → LLM invents
+        // "preciso de aprovação" em texto (200). Re-throw so we return 202.
         const agent = createReactAgent({
           llm: model,
-          tools,
+          tools: new ToolNode(tools, { handleToolErrors: false }),
         });
 
         const result = await agent.invoke(

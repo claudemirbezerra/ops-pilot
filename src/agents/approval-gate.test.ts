@@ -3,7 +3,9 @@ import { test } from "node:test";
 
 import {
   TOOLS_REQUIRING_HUMAN_APPROVAL,
+  HumanApprovalRequiredError,
   describePendingApproval,
+  findApprovalError,
   requiresHumanApproval,
 } from "./approval-gate.js";
 
@@ -24,9 +26,30 @@ test("requiresHumanApproval is true only for gated tools", () => {
 });
 
 test("describePendingApproval builds short card text", () => {
-  assert.equal(describePendingApproval("open_incident", {}), "open_incident");
+  assert.equal(describePendingApproval("open_incident", {}), "Abrir incidente");
   assert.match(
-    describePendingApproval("resolver_incident", { id: "1", summary: "ok" }),
-    /resolver_incident/,
+    describePendingApproval("open_incident", {
+      title: "itens sumindo",
+      service: "checkout",
+      severity: "medium",
+    }),
+    /Abrir incidente:.*"itens sumindo".*checkout.*medium/,
   );
+  assert.equal(
+    describePendingApproval("resolver_incident", { id: 1, summary: "ok" }),
+    "Resolver incidente #1: ok",
+  );
+});
+
+test("findApprovalError recovers nested HumanApprovalRequiredError", () => {
+  const inner = new HumanApprovalRequiredError({
+    tool: "open_incident",
+    args: { title: "t", service: "checkout", severity: "medium" },
+  });
+  const wrapped = new Error("ToolNode failed", { cause: inner });
+  const found = findApprovalError(wrapped);
+  assert.ok(found);
+  assert.equal(found.tool, "open_incident");
+  assert.equal(found.args.service, "checkout");
+  assert.equal(findApprovalError(new Error("outro")), null);
 });
