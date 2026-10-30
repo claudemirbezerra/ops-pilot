@@ -10,6 +10,7 @@ import {
   composeResilientModel,
   flakyRunnable,
   resolveFallbackModel,
+  resolveReportedModelUsed,
 } from "./model.js";
 
 test("resolveFallbackModel: absent / empty / whitespace → undefined", () => {
@@ -107,6 +108,22 @@ test("buildFallbackEvent shape", () => {
     from: "a",
     to: "b",
   });
+});
+
+test("resolveReportedModelUsed prefers observed, else primary", () => {
+  assert.equal(
+    resolveReportedModelUsed("openai/gpt-4o-mini", "openai/gpt-4o"),
+    "openai/gpt-4o-mini",
+  );
+  assert.equal(
+    resolveReportedModelUsed(undefined, "openai/gpt-4o"),
+    "openai/gpt-4o",
+  );
+  assert.equal(resolveReportedModelUsed("  ", "openai/gpt-4o"), "openai/gpt-4o");
+  assert.equal(
+    resolveReportedModelUsed("  openai/gpt-4o-mini  ", "openai/gpt-4o"),
+    "openai/gpt-4o-mini",
+  );
 });
 
 test("ModelUnavailableError default message", () => {

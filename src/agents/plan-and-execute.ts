@@ -5,7 +5,11 @@ import { z } from "zod";
 import { readPromptTokens } from "../context/tokens.js";
 import { ModelUnavailableError } from "../domain/errors.js";
 import type { MemoryStore } from "../domain/types.js";
-import { buildFallbackEvent, createModel } from "./model.js";
+import {
+  buildFallbackEvent,
+  createModel,
+  resolveReportedModelUsed,
+} from "./model.js";
 import {
   buildEmptyInputResult,
   buildLimitReachedAnswer,
@@ -387,9 +391,10 @@ export const planAndExecuteStrategy: ReasoningStrategy = {
           metrics: {
             llmCalls: finalState.llmCalls,
             promptTokens: finalState.promptTokens,
-            ...(model.getModelUsed() !== undefined
-              ? { modelUsed: model.getModelUsed() }
-              : {}),
+            modelUsed: resolveReportedModelUsed(
+              model.getModelUsed(),
+              model.getPrimaryModelId(),
+            ),
           },
         };
       } catch (error: unknown) {

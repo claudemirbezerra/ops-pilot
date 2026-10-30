@@ -66,6 +66,18 @@ export function buildFallbackEvent(args: {
   };
 }
 
+/**
+ * Id a reportar em metrics.modelUsed após um turno que consultou o modelo.
+ * Prefer observed (session); se o agent bypassar o invoke observado, cai no principal.
+ */
+export function resolveReportedModelUsed(
+  observed: string | undefined,
+  primaryId: string,
+): string {
+  const trimmed = observed?.trim() ?? "";
+  return trimmed.length > 0 ? trimmed : primaryId;
+}
+
 function readModelConfig(env: ModelEnv): { apiKey: string; model: string } {
   const apiKey = env.OPENROUTER_API_KEY?.trim() ?? "";
   const model = env.OPENROUTER_MODEL?.trim() ?? "";
@@ -209,7 +221,15 @@ function buildResilientChat(
       input: Parameters<ChatOpenAI["invoke"]>[0],
       options?: Parameters<ChatOpenAI["invoke"]>[1],
     ): Promise<Awaited<ReturnType<ChatOpenAI["invoke"]>>> {
-      return invokeOrUnavailable(chain, input, options);
+      const result = await invokeOrUnavailable<
+        Awaited<ReturnType<ChatOpenAI["invoke"]>>
+      >(chain, input, options);
+      if (session.modelUsed === undefined) {
+        session.modelUsed = session.fallbackOccurred
+          ? (session.fallbackId ?? session.primaryId)
+          : session.primaryId;
+      }
+      return result;
     }
   }
 

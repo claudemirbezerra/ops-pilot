@@ -8,7 +8,11 @@ import {
   type ReasoningStrategy,
   type StrategyOptions,
 } from "./strategy.js";
-import { buildFallbackEvent, createCountingModel } from "./model.js";
+import {
+  buildFallbackEvent,
+  createCountingModel,
+  resolveReportedModelUsed,
+} from "./model.js";
 import { createDefaultOpsStore } from "./store.js";
 import { createOpsTools } from "./tools.js";
 import {
@@ -71,9 +75,10 @@ export const reactStrategy: ReasoningStrategy = {
           metrics: {
             llmCalls: getLlmCalls() || countAiMessages(messages),
             promptTokens: getPromptTokens(),
-            ...(getModelUsed() !== undefined
-              ? { modelUsed: getModelUsed() }
-              : {}),
+            modelUsed: resolveReportedModelUsed(
+              getModelUsed(),
+              model.getPrimaryModelId(),
+            ),
           },
         };
       } catch (error: unknown) {
