@@ -26,8 +26,8 @@
 
 **Purpose**: Pastas e ignores necessários ao pipeline Pages
 
-- [ ] T001 Create directory `.github/workflows/` at repository root if missing
-- [ ] T002 [P] Ensure `web/dist/` is ignored in root `.gitignore` (and/or `web/.gitignore`) so the Pages artifact is never committed
+- [X] T001 Create directory `.github/workflows/` at repository root if missing
+- [X] T002 [P] Ensure `web/dist/` is ignored in root `.gitignore` (and/or `web/.gitignore`) so the Pages artifact is never committed
 
 **Checkpoint**: Estrutura pronta para o YAML e sem risco de versionar `dist`
 
@@ -39,8 +39,8 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Set Vite `base` to `/ops-pilot/` for project Pages in `web/vite.config.ts` (per research: repo `ops-pilot`; optional env override for local `base: '/'` if documented)
-- [ ] T004 Verify local artifact: run `npm ci` and `npm run build` in `web/` and confirm `web/dist/index.html` exists with asset paths under `/ops-pilot/`
+- [X] T003 Set Vite `base` to `/ops-pilot/` for project Pages in `web/vite.config.ts` (per research: repo `ops-pilot`; optional env override for local `base: '/'` if documented)
+- [X] T004 Verify local artifact: run `npm ci` and `npm run build` in `web/` and confirm `web/dist/index.html` exists with asset paths under `/ops-pilot/`
 
 **Checkpoint**: Build local produz SiteArtifact válido com base correta — stories de pipeline/docs podem seguir
 
@@ -54,11 +54,11 @@
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Create `.github/workflows/deploy-pages.yml` with triggers `push` to branches `main` and `master`, plus `workflow_dispatch`, and `concurrency: { group: pages, cancel-in-progress: false }` per `contracts/pages-workflow.md`
-- [ ] T006 [US1] In `.github/workflows/deploy-pages.yml`, set top-level `permissions`: `contents: read`, `pages: write`, `id-token: write` only (FR-003 / least privilege)
-- [ ] T007 [US1] Add job `build` in `.github/workflows/deploy-pages.yml`: `ubuntu-latest`; `actions/checkout`; `actions/setup-node` with Node **22**; working directory `web/` — `npm ci` then `npm run build`; optional `actions/configure-pages`; `actions/upload-pages-artifact` with `path: web/dist` (no secrets / env API keys in build — FR-007)
-- [ ] T008 [US1] Add job `deploy` in `.github/workflows/deploy-pages.yml`: `needs: build`; `environment.name: github-pages` with `url` from deployment step output; single step `actions/deploy-pages` with `id: deployment`
-- [ ] T009 [US1] Smoke-check workflow YAML against `contracts/pages-workflow.md` (triggers, permissions, two jobs, artifact path, deploy-pages); note human prerequisite Settings → Pages → Source = GitHub Actions for first live deploy
+- [X] T005 [US1] Create `.github/workflows/deploy-pages.yml` with triggers `push` to branches `main` and `master`, plus `workflow_dispatch`, and `concurrency: { group: pages, cancel-in-progress: false }` per `contracts/pages-workflow.md`
+- [X] T006 [US1] In `.github/workflows/deploy-pages.yml`, set top-level `permissions`: `contents: read`, `pages: write`, `id-token: write` only (FR-003 / least privilege)
+- [X] T007 [US1] Add job `build` in `.github/workflows/deploy-pages.yml`: `ubuntu-latest`; `actions/checkout`; `actions/setup-node` with Node **22**; working directory `web/` — `npm ci` then `npm run build`; optional `actions/configure-pages`; `actions/upload-pages-artifact` with `path: web/dist` (no secrets / env API keys in build — FR-007)
+- [X] T008 [US1] Add job `deploy` in `.github/workflows/deploy-pages.yml`: `needs: build`; `environment.name: github-pages` with `url` from deployment step output; single step `actions/deploy-pages` with `id: deployment`
+- [X] T009 [US1] Smoke-check workflow YAML against `contracts/pages-workflow.md` (triggers, permissions, two jobs, artifact path, deploy-pages); note human prerequisite Settings → Pages → Source = GitHub Actions for first live deploy
 
 **Checkpoint**: MVP — pipeline artifact → deploy definido; site publicável com Pages habilitado
 
@@ -72,8 +72,8 @@
 
 ### Implementation for User Story 2
 
-- [ ] T010 [US2] Harden `.github/workflows/deploy-pages.yml`: confirm `deploy` has `needs: [build]` (or `needs: build`) and that `upload-pages-artifact` is **only** in `build` after successful `npm run build` (no unconditional deploy path, no parallel deploy without artifact)
-- [ ] T011 [US2] Document the fail-closed rule in a short comment at the top of `.github/workflows/deploy-pages.yml` (build failure ⇒ no Pages promotion; previous site remains)
+- [X] T010 [US2] Harden `.github/workflows/deploy-pages.yml`: confirm `deploy` has `needs: [build]` (or `needs: build`) and that `upload-pages-artifact` is **only** in `build` after successful `npm run build` (no unconditional deploy path, no parallel deploy without artifact)
+- [X] T011 [US2] Document the fail-closed rule in a short comment at the top of `.github/workflows/deploy-pages.yml` (build failure ⇒ no Pages promotion; previous site remains)
 
 **Checkpoint**: Gate FR-004 explícito no workflow
 
@@ -87,8 +87,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T012 [US3] Create or update root `README.md` with section **War Room / GitHub Pages** covering: auto-publish from `web/` via `.github/workflows/deploy-pages.yml`; prerequisite Settings → Pages → Source = **GitHub Actions**; public URL `https://claudemirbezerra.github.io/ops-pilot/` (or how to read it from Settings / `page_url`); triggers `main`/`master` + `workflow_dispatch` per `contracts/readme-pages.md`
-- [ ] T013 [P] [US3] In root `README.md`, state explicitly that Pages does **not** host the OpsPilot API and that API base URL is configured in the war room gear (`localStorage`); link to `web/README.md` for local run
+- [X] T012 [US3] Create or update root `README.md` with section **War Room / GitHub Pages** covering: auto-publish from `web/` via `.github/workflows/deploy-pages.yml`; prerequisite Settings → Pages → Source = **GitHub Actions**; public URL `https://claudemirbezerra.github.io/ops-pilot/` (or how to read it from Settings / `page_url`); triggers `main`/`master` + `workflow_dispatch` per `contracts/readme-pages.md`
+- [X] T013 [P] [US3] In root `README.md`, state explicitly that Pages does **not** host the OpsPilot API and that API base URL is configured in the war room gear (`localStorage`); link to `web/README.md` for local run
 
 **Checkpoint**: FR-005 / SC-003 satisfeitos
 
@@ -98,9 +98,9 @@
 
 **Purpose**: Validação final e alinhamento docs
 
-- [ ] T014 [P] Add brief note in `web/README.md` pointing to root `README.md` for GitHub Pages URL / deploy (do not duplicate full Pages setup)
-- [ ] T015 Run root `npm run typecheck` and `npm test`; run `npm --prefix web run typecheck` (or build) until green
-- [ ] T016 Walk [quickstart.md](./quickstart.md) checklist items 1–3 locally; mark remote steps 4–5 as manual after first push with Pages Source=Actions
+- [X] T014 [P] Add brief note in `web/README.md` pointing to root `README.md` for GitHub Pages URL / deploy (do not duplicate full Pages setup)
+- [X] T015 Run root `npm run typecheck` and `npm test`; run `npm --prefix web run typecheck` (or build) until green
+- [X] T016 Walk [quickstart.md](./quickstart.md) checklist items 1–3 locally; mark remote steps 4–5 as manual after first push with Pages Source=Actions
 
 ---
 
