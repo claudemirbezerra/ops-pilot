@@ -30,6 +30,8 @@ import {
 } from "../services/history-prompt.js";
 import { renderMemoryPrompt } from "../services/memory-prompt.js";
 import { SqliteConversationStore } from "../store/sqlite-conversation-store.js";
+import { SqliteRequestStore } from "../store/sqlite-request-store.js";
+import { createLogger } from "../obs/logger.js";
 import { createApp, type CreateAppOptions } from "./server.js";
 
 function fixedRouter(
@@ -44,10 +46,16 @@ function fixedRouter(
   };
 }
 
+function silentLogger() {
+  return createLogger(() => undefined);
+}
+
 function testApp(options: CreateAppOptions = {}) {
   return createApp({
     ...options,
     router: options.router ?? fixedRouter("react"),
+    requestStore: options.requestStore ?? new SqliteRequestStore(":memory:"),
+    logger: options.logger ?? silentLogger(),
   });
 }
 
@@ -154,7 +162,11 @@ async function postJson(
   baseUrl: string,
   body: unknown,
   init?: { raw?: string; contentType?: string },
-): Promise<{ status: number; json: Record<string, unknown> }> {
+): Promise<{
+  status: number;
+  json: Record<string, unknown>;
+  headers: Headers;
+}> {
   const response = await fetch(`${baseUrl}/chat`, {
     method: "POST",
     headers: {
@@ -162,6 +174,15 @@ async function postJson(
     },
     body: init?.raw ?? JSON.stringify(body),
   });
+  const json = (await response.json()) as Record<string, unknown>;
+  return { status: response.status, json, headers: response.headers };
+}
+
+async function getJson(
+  baseUrl: string,
+  path: string,
+): Promise<{ status: number; json: Record<string, unknown> }> {
+  const response = await fetch(`${baseUrl}${path}`);
   const json = (await response.json()) as Record<string, unknown>;
   return { status: response.status, json };
 }
@@ -1609,6 +1630,237 @@ test("200 preserves metrics.modelUsed and fallback trace event", async () => {
           event.to === "model-b",
       ),
     );
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("POST /chat 200 exposes requestId equal to X-Request-Id header", async () => {
+  const result = await postJson(baseUrl, { message: "correlacionar id" });
+  assert.equal(result.status, 200);
+  const requestId = result.json.requestId;
+  assert.equal(typeof requestId, "string");
+  assert.ok((requestId as string).length > 0);
+  assert.equal(result.headers.get("x-request-id"), requestId);
+});
+
+test("two POST /chat calls get distinct requestIds", async () => {
+  const a = await postJson(baseUrl, { message: "id-a" });
+  const b = await postJson(baseUrl, { message: "id-b" });
+  assert.equal(a.status, 200);
+  assert.equal(b.status, 200);
+  assert.notEqual(a.json.requestId, b.json.requestId);
+});
+
+test("domain error after schema keeps X-Request-Id header", async () => {
+  const result = await postJson(baseUrl, {
+    message: "x",
+    strategy: "estrategia-que-nao-existe",
+  });
+  assert.equal(result.status, 422);
+  const headerId = result.headers.get("x-request-id");
+  assert.ok(headerId && headerId.length > 0);
+});
+
+test("POST /chat persists request and GET /request/:id returns ordered trace", async () => {
+  const requestStore = new SqliteRequestStore(":memory:");
+  const multiTrace: ReasoningStrategy = {
+    name: "react",
+    async run(message: string): Promise<StrategyResult> {
+      return {
+        answer: `ok:${message}`,
+        trace: [
+          { type: "thought", content: "t1", node: "react" },
+          { type: "answer", content: `ok:${message}`, node: "response" },
+        ],
+        metrics: { llmCalls: 0, latencyMs: 2, promptTokens: 7 },
+      };
+    },
+  };
+  const started = await listen(
+    testApp({
+      registry: {
+        react: multiTrace,
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      router: fixedRouter("react", "teste", { llmCalls: 0, promptTokens: 0 }),
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
+      learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
+      requestStore,
+    }),
+  );
+
+  try {
+    const chat = await postJson(started.baseUrl, { message: "persistir" });
+    assert.equal(chat.status, 200);
+    const requestId = chat.json.requestId as string;
+    const chatTrace = chat.json.trace as TraceEvent[];
+
+    const saved = requestStore.getById(requestId);
+    assert.ok(saved);
+    assert.equal(saved.trace.length, chatTrace.length);
+    assert.deepEqual(
+      saved.trace.map((e) => e.type),
+      chatTrace.map((e) => e.type),
+    );
+
+    const got = await getJson(started.baseUrl, `/request/${requestId}`);
+    assert.equal(got.status, 200);
+    assert.equal(got.json.requestId, requestId);
+    assert.equal(typeof got.json.createdAt, "number");
+    const gotTrace = got.json.trace as TraceEvent[];
+    assert.equal(gotTrace.length, chatTrace.length);
+    assert.deepEqual(
+      gotTrace.map((e) => e.type),
+      chatTrace.map((e) => e.type),
+    );
+    const metrics = got.json.metrics as { promptTokens?: number };
+    assert.equal(metrics.promptTokens, 7);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("blank POST /chat still persists request for GET", async () => {
+  const requestStore = new SqliteRequestStore(":memory:");
+  const started = await listen(
+    testApp({
+      registry: {
+        react: makeFake("react", []),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
+      learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
+      requestStore,
+    }),
+  );
+
+  try {
+    const chat = await postJson(started.baseUrl, { message: "   " });
+    assert.equal(chat.status, 200);
+    const requestId = chat.json.requestId as string;
+    const got = await getJson(started.baseUrl, `/request/${requestId}`);
+    assert.equal(got.status, 200);
+    assert.equal(got.json.requestId, requestId);
+    assert.ok(Array.isArray(got.json.trace));
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("GET /request unknown id returns 404 Request não encontrado.", async () => {
+  const result = await getJson(
+    baseUrl,
+    "/request/00000000-0000-0000-0000-000000000000",
+  );
+  assert.equal(result.status, 404);
+  assert.equal(result.json.message, "Request não encontrado.");
+});
+
+test("GET /request with whitespace id returns 400", async () => {
+  const response = await fetch(`${baseUrl}/request/%20%20`);
+  const json = (await response.json()) as Record<string, unknown>;
+  assert.equal(response.status, 400);
+  assert.ok(json.issues);
+});
+
+test("chat logger emits one metadata line per trace event", async () => {
+  const lines: string[] = [];
+  const requestStore = new SqliteRequestStore(":memory:");
+  const multiTrace: ReasoningStrategy = {
+    name: "react",
+    async run(message: string): Promise<StrategyResult> {
+      return {
+        answer: `ok:${message}`,
+        trace: [
+          { type: "thought", content: "secret-payload", node: "react" },
+          { type: "answer", content: `ok:${message}` },
+        ],
+        metrics: { llmCalls: 0, latencyMs: 1, promptTokens: 3 },
+      };
+    },
+  };
+  const started = await listen(
+    testApp({
+      registry: {
+        react: multiTrace,
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      router: fixedRouter("react", "teste", { llmCalls: 0, promptTokens: 0 }),
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
+      learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
+      requestStore,
+      logger: createLogger((line) => {
+        lines.push(line);
+      }),
+    }),
+  );
+
+  try {
+    const chat = await postJson(started.baseUrl, { message: "log meta" });
+    assert.equal(chat.status, 200);
+    const requestId = chat.json.requestId as string;
+    const chatTrace = chat.json.trace as TraceEvent[];
+    const traceLines = lines
+      .map((line) => JSON.parse(line.trim()) as Record<string, unknown>)
+      .filter((row) => typeof row.seq === "number");
+    assert.equal(traceLines.length, chatTrace.length);
+    assert.ok(traceLines.length >= 2);
+    assert.equal(traceLines[0]!.requestId, requestId);
+    for (let i = 0; i < traceLines.length; i += 1) {
+      assert.equal(traceLines[i]!.seq, i);
+      assert.equal("content" in traceLines[i]!, false);
+      assert.equal("payload" in traceLines[i]!, false);
+    }
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("parallel chats do not mix persisted traces", async () => {
+  const requestStore = new SqliteRequestStore(":memory:");
+  const started = await listen(
+    testApp({
+      registry: {
+        react: makeFake("react", []),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      conversationStore: new SqliteConversationStore(":memory:"),
+      memoryStore: fakeMemoryStore(),
+      learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
+      requestStore,
+    }),
+  );
+
+  try {
+    const [a, b] = await Promise.all([
+      postJson(started.baseUrl, { message: "paralelo-a" }),
+      postJson(started.baseUrl, { message: "paralelo-b" }),
+    ]);
+    assert.equal(a.status, 200);
+    assert.equal(b.status, 200);
+    const idA = a.json.requestId as string;
+    const idB = b.json.requestId as string;
+    assert.notEqual(idA, idB);
+    const gotA = await getJson(started.baseUrl, `/request/${idA}`);
+    const gotB = await getJson(started.baseUrl, `/request/${idB}`);
+    const answerA = (gotA.json.trace as TraceEvent[]).find(
+      (e) => e.type === "answer",
+    );
+    const answerB = (gotB.json.trace as TraceEvent[]).find(
+      (e) => e.type === "answer",
+    );
+    assert.ok(answerA && "content" in answerA);
+    assert.ok(answerB && "content" in answerB);
+    assert.match(String(answerA.content), /paralelo-a/);
+    assert.match(String(answerB.content), /paralelo-b/);
   } finally {
     await closeServer(started.server);
   }

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import express, {
   type Express,
   type NextFunction,
@@ -14,18 +15,26 @@ import type { Critic } from "../agents/critic.js";
 import type { ConversationSummarizer } from "../agents/conversation-summarizer.js";
 import type { LearningExtractor } from "../agents/learning-extractor.js";
 import type { ProductionRouter } from "../agents/production-graph.js";
-import type { ConversationStore, MemoryStore } from "../domain/types.js";
+import type {
+  ConversationStore,
+  MemoryStore,
+  RequestStore,
+} from "../domain/types.js";
 import { runChat } from "../services/chat-service.js";
 import { SqliteConversationStore } from "../store/sqlite-conversation-store.js";
 import { SqliteMemoryStore } from "../memory/memory-store.js";
+import { SqliteRequestStore } from "../store/sqlite-request-store.js";
+import { createLogger, type ObsLogger } from "../obs/logger.js";
 import {
   ChatTimeoutError,
   ConversationNotFoundError,
   EmbeddingUnavailableError,
   InvalidRouteError,
   ModelUnavailableError,
+  RequestNotFoundError,
   UnknownStrategyError,
 } from "../domain/errors.js";
+import { persistChatRequest } from "./persist-chat-request.js";
 
 export const DEFAULT_CHAT_TIMEOUT_MS = 180_000;
 
@@ -46,6 +55,8 @@ export type CreateAppOptions = {
   memoryStore?: MemoryStore;
   learningExtractor?: LearningExtractor;
   conversationSummarizer?: ConversationSummarizer;
+  requestStore?: RequestStore;
+  logger?: ObsLogger;
 };
 
 export function createApp(options: CreateAppOptions = {}): Express {
@@ -58,6 +69,8 @@ export function createApp(options: CreateAppOptions = {}): Express {
   const memoryStore = options.memoryStore ?? new SqliteMemoryStore();
   const learningExtractor = options.learningExtractor;
   const conversationSummarizer = options.conversationSummarizer;
+  const requestStore = options.requestStore ?? new SqliteRequestStore();
+  const logger = options.logger ?? createLogger();
 
   const app = express();
   app.use(express.json());
@@ -91,6 +104,9 @@ export function createApp(options: CreateAppOptions = {}): Express {
       return;
     }
 
+    const requestId = randomUUID();
+    res.setHeader("X-Request-Id", requestId);
+
     try {
       const result = await runChat({
         message: parsed.data.message,
@@ -107,7 +123,17 @@ export function createApp(options: CreateAppOptions = {}): Express {
         learningExtractor,
         conversationSummarizer,
       });
+
+      persistChatRequest({
+        requestId,
+        metrics: result.metrics as unknown as Record<string, unknown>,
+        trace: result.trace,
+        requestStore,
+        logger,
+      });
+
       res.status(200).json({
+        requestId,
         answer: result.answer,
         trace: result.trace,
         metrics: result.metrics,
@@ -142,6 +168,30 @@ export function createApp(options: CreateAppOptions = {}): Express {
       }
       throw error;
     }
+  });
+
+  app.get("/request/:id", (req: Request, res: Response) => {
+    const id = typeof req.params.id === "string" ? req.params.id.trim() : "";
+    if (id.length === 0) {
+      res.status(400).json({
+        issues: [{ path: ["id"], message: "id é obrigatório." }],
+      });
+      return;
+    }
+
+    const saved = requestStore.getById(id);
+    if (saved === null) {
+      const error = new RequestNotFoundError();
+      res.status(404).json({ message: error.message });
+      return;
+    }
+
+    res.status(200).json({
+      requestId: saved.requestId,
+      createdAt: saved.createdAt,
+      metrics: saved.metrics,
+      trace: saved.trace,
+    });
   });
 
   return app;

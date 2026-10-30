@@ -102,3 +102,27 @@ export type OpsStore = {
   resolveIncident(id: number, summary?: string | null): IncidentRecord;
   getRunbook(service: string): RunbookRecord;
 };
+
+/** Trace payload stored for a request; kept loose to avoid domain→agents cycles. */
+export type PersistedTraceEvent = {
+  type: string;
+  node?: string;
+  [key: string]: unknown;
+};
+
+export type SavedRequest = {
+  requestId: string;
+  createdAt: number;
+  metrics: Record<string, unknown>;
+  trace: PersistedTraceEvent[];
+};
+
+export type RequestStore = {
+  save(input: {
+    id: string;
+    createdAt: number;
+    metrics: SavedRequest["metrics"];
+    trace: PersistedTraceEvent[];
+  }): void;
+  getById(id: string): SavedRequest | null;
+};

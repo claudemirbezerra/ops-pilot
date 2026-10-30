@@ -24,10 +24,10 @@
 
 **Purpose**: Esqueleto de pastas/arquivos da feature; sem mudar comportamento de produção ainda
 
-- [ ] T001 [P] Create directory `src/obs/` and stub `src/obs/logger.ts` exporting a placeholder `createLogger` (or equivalent) that throws `Error("not implemented")` so imports resolve
-- [ ] T002 [P] Create stub `src/store/sqlite-request-store.ts` exporting class `SqliteRequestStore` with constructor accepting `path?: string` defaulting to `process.env.OPSPILOT_DB ?? "./data/opspilot.db"` (body may throw `not implemented`)
-- [ ] T003 [P] Create placeholder test files `src/obs/logger.test.ts` and `src/store/sqlite-request-store.test.ts` with `node:test` `test.todo` entries referencing `contracts/logger.md` and `contracts/request-store.md`
-- [ ] T004 Confirm no new npm dependency is required (`node:crypto`, `node:sqlite`, Express, Zod already in stack); do not add packages to `package.json`
+- [X] T001 [P] Create directory `src/obs/` and stub `src/obs/logger.ts` exporting a placeholder `createLogger` (or equivalent) that throws `Error("not implemented")` so imports resolve
+- [X] T002 [P] Create stub `src/store/sqlite-request-store.ts` exporting class `SqliteRequestStore` with constructor accepting `path?: string` defaulting to `process.env.OPSPILOT_DB ?? "./data/opspilot.db"` (body may throw `not implemented`)
+- [X] T003 [P] Create placeholder test files `src/obs/logger.test.ts` and `src/store/sqlite-request-store.test.ts` with `node:test` `test.todo` entries referencing `contracts/logger.md` and `contracts/request-store.md`
+- [X] T004 Confirm no new npm dependency is required (`node:crypto`, `node:sqlite`, Express, Zod already in stack); do not add packages to `package.json`
 
 **Checkpoint**: Stubs e todos existem; typecheck do restante intacto se stubs não forem importados pela app ainda
 
@@ -39,13 +39,13 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T005 [P] Add `RequestNotFoundError` class in `src/domain/errors.ts` extending `DomainError` with default message exactly `Request não encontrado.`
-- [ ] T006 [P] Add domain types in `src/domain/types.ts` (or colocated next to store if project prefers): `SavedRequest` with `requestId: string`, `createdAt: number` (epoch ms), `metrics` object, `trace: TraceEvent[]`; and `RequestStore` with `save(input: { id: string; createdAt: number; metrics: SavedRequest["metrics"]; trace: TraceEvent[] }): void` and `getById(id: string): SavedRequest | null` per `data-model.md` and `contracts/request-store.md`
-- [ ] T007 Implement `SqliteRequestStore` in `src/store/sqlite-request-store.ts`: open `DatabaseSync`, `PRAGMA foreign_keys = ON`, create tables exactly — `requests(id TEXT PRIMARY KEY, created_at INTEGER NOT NULL, metrics_json TEXT NOT NULL)` and `trace_events(id INTEGER PRIMARY KEY AUTOINCREMENT, request_id TEXT NOT NULL REFERENCES requests(id), seq INTEGER NOT NULL, node TEXT, type TEXT NOT NULL, payload TEXT NOT NULL, UNIQUE(request_id, seq))` plus index `trace_events_request_id_seq` on `(request_id, seq)`; path `:memory:` skips mkdir; file path uses `mkdirSync(dirname)` like `SqliteConversationStore`
-- [ ] T008 Implement `save` in `src/store/sqlite-request-store.ts` inside a transaction: insert `requests`; for each trace event index `i` insert `trace_events` with `seq=i`, `type=event.type`, `node=event.node ?? null`, `payload=JSON.stringify(event)` (full TraceEvent); empty trace allowed
-- [ ] T009 Implement `getById` in `src/store/sqlite-request-store.ts`: missing request → `null`; else parse `metrics_json`, load events `ORDER BY seq ASC`, parse each `payload` into `trace`
-- [ ] T010 Replace todos in `src/store/sqlite-request-store.test.ts` with cases: save+get round-trip with metrics + ordered multi-event trace; empty trace; unknown id → `null`; run `node --import tsx --test src/store/sqlite-request-store.test.ts` until green
-- [ ] T011 Run `npm run typecheck` until green after T005–T010
+- [X] T005 [P] Add `RequestNotFoundError` class in `src/domain/errors.ts` extending `DomainError` with default message exactly `Request não encontrado.`
+- [X] T006 [P] Add domain types in `src/domain/types.ts` (or colocated next to store if project prefers): `SavedRequest` with `requestId: string`, `createdAt: number` (epoch ms), `metrics` object, `trace: TraceEvent[]`; and `RequestStore` with `save(input: { id: string; createdAt: number; metrics: SavedRequest["metrics"]; trace: TraceEvent[] }): void` and `getById(id: string): SavedRequest | null` per `data-model.md` and `contracts/request-store.md`
+- [X] T007 Implement `SqliteRequestStore` in `src/store/sqlite-request-store.ts`: open `DatabaseSync`, `PRAGMA foreign_keys = ON`, create tables exactly — `requests(id TEXT PRIMARY KEY, created_at INTEGER NOT NULL, metrics_json TEXT NOT NULL)` and `trace_events(id INTEGER PRIMARY KEY AUTOINCREMENT, request_id TEXT NOT NULL REFERENCES requests(id), seq INTEGER NOT NULL, node TEXT, type TEXT NOT NULL, payload TEXT NOT NULL, UNIQUE(request_id, seq))` plus index `trace_events_request_id_seq` on `(request_id, seq)`; path `:memory:` skips mkdir; file path uses `mkdirSync(dirname)` like `SqliteConversationStore`
+- [X] T008 Implement `save` in `src/store/sqlite-request-store.ts` inside a transaction: insert `requests`; for each trace event index `i` insert `trace_events` with `seq=i`, `type=event.type`, `node=event.node ?? null`, `payload=JSON.stringify(event)` (full TraceEvent); empty trace allowed
+- [X] T009 Implement `getById` in `src/store/sqlite-request-store.ts`: missing request → `null`; else parse `metrics_json`, load events `ORDER BY seq ASC`, parse each `payload` into `trace`
+- [X] T010 Replace todos in `src/store/sqlite-request-store.test.ts` with cases: save+get round-trip with metrics + ordered multi-event trace; empty trace; unknown id → `null`; run `node --import tsx --test src/store/sqlite-request-store.test.ts` until green
+- [X] T011 Run `npm run typecheck` until green after T005–T010
 
 **Checkpoint**: Store e erro de domínio prontos — stories podem wirear HTTP/logger
 
@@ -61,15 +61,15 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T012 [P] [US1] In `src/http/server.test.ts`, add failing case: successful `POST /chat` → JSON `requestId` is non-empty string and equals response header `X-Request-Id` per `contracts/chat-http.md`
-- [ ] T013 [P] [US1] In `src/http/server.test.ts`, add failing case: two successful `POST /chat` calls yield two distinct `requestId` values
-- [ ] T014 [P] [US1] In `src/http/server.test.ts`, add failing case: after schema-valid body, domain error path (e.g. unknown strategy 422 or fake timeout 504) still returns header `X-Request-Id` with a non-empty value
+- [X] T012 [P] [US1] In `src/http/server.test.ts`, add failing case: successful `POST /chat` → JSON `requestId` is non-empty string and equals response header `X-Request-Id` per `contracts/chat-http.md`
+- [X] T013 [P] [US1] In `src/http/server.test.ts`, add failing case: two successful `POST /chat` calls yield two distinct `requestId` values
+- [X] T014 [P] [US1] In `src/http/server.test.ts`, add failing case: after schema-valid body, domain error path (e.g. unknown strategy 422 or fake timeout 504) still returns header `X-Request-Id` with a non-empty value
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] In `src/http/server.ts` `POST /chat` handler: after successful Zod body parse, generate `requestId` with `randomUUID()` from `node:crypto`, call `res.setHeader("X-Request-Id", requestId)` before `runChat`; include `requestId` in the 200 JSON alongside `answer` / `trace` / `metrics` / `conversationId?`
-- [ ] T016 [US1] Ensure error branches after id generation in `src/http/server.ts` keep the `X-Request-Id` header already set (do not clear it); 400 schema failures before id remain without mandatory header
-- [ ] T017 [US1] Run US1 tests in `src/http/server.test.ts` + `npm run typecheck` until green
+- [X] T015 [US1] In `src/http/server.ts` `POST /chat` handler: after successful Zod body parse, generate `requestId` with `randomUUID()` from `node:crypto`, call `res.setHeader("X-Request-Id", requestId)` before `runChat`; include `requestId` in the 200 JSON alongside `answer` / `trace` / `metrics` / `conversationId?`
+- [X] T016 [US1] Ensure error branches after id generation in `src/http/server.ts` keep the `X-Request-Id` header already set (do not clear it); 400 schema failures before id remain without mandatory header
+- [X] T017 [US1] Run US1 tests in `src/http/server.test.ts` + `npm run typecheck` until green
 
 **Checkpoint**: MVP — plantonista correlaciona o turno pelo id na borda HTTP
 
@@ -85,14 +85,14 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T018 [P] [US2] In `src/http/server.test.ts`, add failing case: inject `requestStore: new SqliteRequestStore(":memory:")`; after 200 with multi-event fake trace, `getById` returns one request whose `metrics` match JSON and `trace.length` equals response trace, same order
-- [ ] T019 [P] [US2] In `src/http/server.test.ts`, add failing case: blank-message 200 still persists a request row (trace may be minimal/non-empty per `buildEmptyInputResult`); `getById` succeeds
+- [X] T018 [P] [US2] In `src/http/server.test.ts`, add failing case: inject `requestStore: new SqliteRequestStore(":memory:")`; after 200 with multi-event fake trace, `getById` returns one request whose `metrics` match JSON and `trace.length` equals response trace, same order
+- [X] T019 [P] [US2] In `src/http/server.test.ts`, add failing case: blank-message 200 still persists a request row (trace may be minimal/non-empty per `buildEmptyInputResult`); `getById` succeeds
 
 ### Implementation for User Story 2
 
-- [ ] T020 [US2] Extend `CreateAppOptions` in `src/http/server.ts` with optional `requestStore?: RequestStore` defaulting to `new SqliteRequestStore()`; after successful `runChat`, call `requestStore.save({ id: requestId, createdAt: Date.now(), metrics: result.metrics, trace: result.trace })` **before** `res.status(200).json(...)` per `contracts/chat-http.md` and research Decisão 4
-- [ ] T021 [US2] If `save` throws after a successful turn, do not send a masking 200 — let the error surface as server failure (no silent drop of persistence)
-- [ ] T022 [US2] Run US2 tests + `npm run typecheck` until green
+- [X] T020 [US2] Extend `CreateAppOptions` in `src/http/server.ts` with optional `requestStore?: RequestStore` defaulting to `new SqliteRequestStore()`; after successful `runChat`, call `requestStore.save({ id: requestId, createdAt: Date.now(), metrics: result.metrics, trace: result.trace })` **before** `res.status(200).json(...)` per `contracts/chat-http.md` and research Decisão 4
+- [X] T021 [US2] If `save` throws after a successful turn, do not send a masking 200 — let the error surface as server failure (no silent drop of persistence)
+- [X] T022 [US2] Run US2 tests + `npm run typecheck` until green
 
 **Checkpoint**: Turno 200 fica reconstruível no SQLite pelo `requestId`
 
@@ -108,15 +108,15 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T023 [P] [US3] In `src/obs/logger.test.ts`, add failing cases: `logTraceEvent` writes exactly one JSON line per call; parsed object has `requestId`, `seq`, `type`, `ts`; optional `node`; asserting absence of `content` / `args` / `steps` / `payload` per `contracts/logger.md`
-- [ ] T024 [P] [US3] In `src/obs/logger.test.ts`, add failing case: empty trace path does not invent `logTraceEvent` lines; optional `logRequestLife({ event: "request_end", status: "ok", ... })` emits one metadata-only lifecycle line
-- [ ] T025 [P] [US3] In `src/http/server.test.ts`, add failing case: inject logger writer collector on `createApp`; after `/chat` 200 with K trace events, collector has K trace lines with matching `requestId` and `seq` 0..K-1
+- [X] T023 [P] [US3] In `src/obs/logger.test.ts`, add failing cases: `logTraceEvent` writes exactly one JSON line per call; parsed object has `requestId`, `seq`, `type`, `ts`; optional `node`; asserting absence of `content` / `args` / `steps` / `payload` per `contracts/logger.md`
+- [X] T024 [P] [US3] In `src/obs/logger.test.ts`, add failing case: empty trace path does not invent `logTraceEvent` lines; optional `logRequestLife({ event: "request_end", status: "ok", ... })` emits one metadata-only lifecycle line
+- [X] T025 [P] [US3] In `src/http/server.test.ts`, add failing case: inject logger writer collector on `createApp`; after `/chat` 200 with K trace events, collector has K trace lines with matching `requestId` and `seq` 0..K-1
 
 ### Implementation for User Story 3
 
-- [ ] T026 [US3] Implement `createLogger(writer?: LogWriter)` in `src/obs/logger.ts` with default writer writing `JSON.stringify(meta) + "\n"` to `process.stdout`; expose `logTraceEvent` and `logRequestLife` per `contracts/logger.md` / `data-model.md` LogMetadata (no full TraceEvent serialization)
-- [ ] T027 [US3] Extend `CreateAppOptions` in `src/http/server.ts` with optional logger; after `runChat` success and before/with save: for each `result.trace` index `seq`, `logTraceEvent({ requestId, seq, type: event.type, node: event.node, ts })`; optionally `logRequestLife` for `request_end`
-- [ ] T028 [US3] Run US3 tests + `npm run typecheck` until green
+- [X] T026 [US3] Implement `createLogger(writer?: LogWriter)` in `src/obs/logger.ts` with default writer writing `JSON.stringify(meta) + "\n"` to `process.stdout`; expose `logTraceEvent` and `logRequestLife` per `contracts/logger.md` / `data-model.md` LogMetadata (no full TraceEvent serialization)
+- [X] T027 [US3] Extend `CreateAppOptions` in `src/http/server.ts` with optional logger; after `runChat` success and before/with save: for each `result.trace` index `seq`, `logTraceEvent({ requestId, seq, type: event.type, node: event.node, ts })`; optionally `logRequestLife` for `request_end`
+- [X] T028 [US3] Run US3 tests + `npm run typecheck` until green
 
 **Checkpoint**: Stream de log correlacionável sem payloads
 
@@ -132,15 +132,15 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T029 [P] [US4] In `src/http/server.test.ts`, add failing case: after `/chat` 200, `GET /request/${requestId}` → 200 with `requestId`, `createdAt`, `metrics`, and `trace` equal in length/order to the chat response trace per `contracts/get-request-http.md`
-- [ ] T030 [P] [US4] In `src/http/server.test.ts`, add failing case: `GET /request/00000000-0000-0000-0000-000000000000` → 404 and body `message` is `Request não encontrado.`
-- [ ] T031 [P] [US4] In `src/http/server.test.ts`, add failing case: `GET /request/` or whitespace-only id handling yields 400 (not 200 with empty list)
+- [X] T029 [P] [US4] In `src/http/server.test.ts`, add failing case: after `/chat` 200, `GET /request/${requestId}` → 200 with `requestId`, `createdAt`, `metrics`, and `trace` equal in length/order to the chat response trace per `contracts/get-request-http.md`
+- [X] T030 [P] [US4] In `src/http/server.test.ts`, add failing case: `GET /request/00000000-0000-0000-0000-000000000000` → 404 and body `message` is `Request não encontrado.`
+- [X] T031 [P] [US4] In `src/http/server.test.ts`, add failing case: `GET /request/` or whitespace-only id handling yields 400 (not 200 with empty list)
 
 ### Implementation for User Story 4
 
-- [ ] T032 [US4] Add `GET /request/:id` in `src/http/server.ts`: validate `:id` trim non-empty → else 400 with issues/message; `getById` null → throw/map `RequestNotFoundError` → 404 `{ message }`; else 200 `{ requestId, createdAt, metrics, trace }` with trace already ordered by store
-- [ ] T033 [US4] Register `RequestNotFoundError` mapping next to other domain mappings in `src/http/server.ts` (status 404)
-- [ ] T034 [US4] Run US4 tests + `npm run typecheck` until green
+- [X] T032 [US4] Add `GET /request/:id` in `src/http/server.ts`: validate `:id` trim non-empty → else 400 with issues/message; `getById` null → throw/map `RequestNotFoundError` → 404 `{ message }`; else 200 `{ requestId, createdAt, metrics, trace }` with trace already ordered by store
+- [X] T033 [US4] Register `RequestNotFoundError` mapping next to other domain mappings in `src/http/server.ts` (status 404)
+- [X] T034 [US4] Run US4 tests + `npm run typecheck` until green
 
 **Checkpoint**: Ciclo requestId → GET completo
 
@@ -154,8 +154,8 @@
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T035 [P] [US5] Audit `src/http/server.test.ts`, `src/store/sqlite-request-store.test.ts`, and `src/obs/logger.test.ts` for coverage gaps vs SC-001..SC-006 in `spec.md` (parallel chats isolation: events of A never appear under GET of B); add any missing failing cases
-- [ ] T036 [US5] Run full `npm run typecheck` and `npm test` until both green; fix regressions without weakening prior story contracts
+- [X] T035 [P] [US5] Audit `src/http/server.test.ts`, `src/store/sqlite-request-store.test.ts`, and `src/obs/logger.test.ts` for coverage gaps vs SC-001..SC-006 in `spec.md` (parallel chats isolation: events of A never appear under GET of B); add any missing failing cases
+- [X] T036 [US5] Run full `npm run typecheck` and `npm test` until both green; fix regressions without weakening prior story contracts
 
 **Checkpoint**: FR-009 / SC-006 satisfeitos
 
@@ -165,9 +165,9 @@
 
 **Purpose**: Validação quickstart e higiene
 
-- [ ] T037 [P] Walk through `specs/015-tracer-persistido/quickstart.md` checklist against implemented behavior; fix doc drift only in that quickstart if commands/paths differ
-- [ ] T038 Confirm arena/bench are untouched regarding tracer persistence (no required wire) per plan Assumptions; note only if accidental coupling was introduced and remove it
-- [ ] T039 Final `npm run typecheck` + `npm test` green after polish
+- [X] T037 [P] Walk through `specs/015-tracer-persistido/quickstart.md` checklist against implemented behavior; fix doc drift only in that quickstart if commands/paths differ
+- [X] T038 Confirm arena/bench are untouched regarding tracer persistence (no required wire) per plan Assumptions; note only if accidental coupling was introduced and remove it
+- [X] T039 Final `npm run typecheck` + `npm test` green after polish
 
 ---
 

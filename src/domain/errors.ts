@@ -35,6 +35,12 @@ export class InvalidMaxReflectionsError extends DomainError {}
 
 export class ConversationNotFoundError extends DomainError {}
 
+export class RequestNotFoundError extends DomainError {
+  constructor(message = "Request não encontrado.") {
+    super(message);
+  }
+}
+
 export class InvalidConversationMessageError extends DomainError {}
 
 export class InvalidMemoryInputError extends DomainError {}
