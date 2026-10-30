@@ -41,6 +41,18 @@ export class RequestNotFoundError extends DomainError {
   }
 }
 
+export class ApprovalNotFoundError extends DomainError {
+  constructor(message = "Aprovação não encontrada.") {
+    super(message);
+  }
+}
+
+export class ApprovalAlreadyResolvedError extends DomainError {
+  constructor(message = "Aprovação já resolvida.") {
+    super(message);
+  }
+}
+
 export class InvalidConversationMessageError extends DomainError {}
 
 export class InvalidMemoryInputError extends DomainError {}

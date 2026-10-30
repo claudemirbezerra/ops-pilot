@@ -126,3 +126,27 @@ export type RequestStore = {
   }): void;
   getById(id: string): SavedRequest | null;
 };
+
+export type ApprovalDecision = "approve" | "deny";
+
+export type ApprovalStatus = "pending" | "approved" | "denied";
+
+export type PendingApproval = {
+  id: string;
+  createdAt: number;
+  status: ApprovalStatus;
+  tool: string;
+  args: Record<string, unknown>;
+  description: string;
+  requestId: string;
+  conversationId?: string;
+  trace: PersistedTraceEvent[];
+  metrics: Record<string, unknown>;
+  resolvedAt?: number;
+};
+
+export type ApprovalStore = {
+  save(record: PendingApproval): void;
+  getById(id: string): PendingApproval | null;
+  resolve(id: string, decision: ApprovalDecision): PendingApproval;
+};

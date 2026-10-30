@@ -31,6 +31,8 @@ npm run dev
 
 Esperado: log em `http://127.0.0.1:3000` (ou `PORT`).
 
+CORS opcional: `OPSPILOT_CORS_ORIGINS=http://localhost:5173` (allowlist). Sem a variável, a API reflete o header `Origin`.
+
 Smoke manual (PowerShell):
 
 ```powershell

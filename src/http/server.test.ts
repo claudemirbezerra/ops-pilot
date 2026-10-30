@@ -1865,3 +1865,259 @@ test("parallel chats do not mix persisted traces", async () => {
     await closeServer(started.server);
   }
 });
+
+test("POST /opspilot/chat mirrors POST /chat 200 shape", async () => {
+  const started = await listen(
+    testApp({
+      registry: { react: makeFake("react", []), "plan-and-execute": makeFake("plan-and-execute", []) },
+      learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
+    }),
+  );
+  try {
+    const root = await postJson(started.baseUrl, { message: "ola" });
+    const prefixed = await fetch(`${started.baseUrl}/opspilot/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "ola" }),
+    });
+    const prefixedJson = (await prefixed.json()) as Record<string, unknown>;
+    assert.equal(root.status, 200);
+    assert.equal(prefixed.status, 200);
+    assert.equal(typeof prefixedJson.requestId, "string");
+    assert.equal(typeof prefixedJson.answer, "string");
+    assert.ok(Array.isArray(prefixedJson.trace));
+    assert.ok(prefixedJson.metrics && typeof prefixedJson.metrics === "object");
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("CORS reflects Origin on POST /opspilot/chat", async () => {
+  const started = await listen(
+    testApp({
+      corsOriginsEnv: "",
+      registry: { react: makeFake("react", []), "plan-and-execute": makeFake("plan-and-execute", []) },
+      learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
+    }),
+  );
+  try {
+    const response = await fetch(`${started.baseUrl}/opspilot/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173",
+      },
+      body: JSON.stringify({ message: "cors" }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal(
+      response.headers.get("Access-Control-Allow-Origin"),
+      "http://localhost:5173",
+    );
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("CORS OPTIONS preflight on /opspilot/chat", async () => {
+  const started = await listen(testApp({ corsOriginsEnv: "" }));
+  try {
+    const response = await fetch(`${started.baseUrl}/opspilot/chat`, {
+      method: "OPTIONS",
+      headers: { Origin: "http://localhost:5173" },
+    });
+    assert.equal(response.status, 204);
+    assert.equal(
+      response.headers.get("Access-Control-Allow-Origin"),
+      "http://localhost:5173",
+    );
+    assert.match(
+      String(response.headers.get("Access-Control-Allow-Methods")),
+      /POST/,
+    );
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("CORS allowlist denies other Origin", async () => {
+  const started = await listen(
+    testApp({
+      corsOriginsEnv: "http://a.example",
+      registry: { react: makeFake("react", []), "plan-and-execute": makeFake("plan-and-execute", []) },
+      learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
+    }),
+  );
+  try {
+    const response = await fetch(`${started.baseUrl}/opspilot/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://b.example",
+      },
+      body: JSON.stringify({ message: "x" }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+function pendingFake(): ReasoningStrategy {
+  return {
+    name: "react",
+    async run() {
+      return {
+        answer: "Aguardando aprovação humana.",
+        trace: [
+          {
+            type: "action",
+            tool: "resolver_incident",
+            args: { id: 1, summary: "ok" },
+          },
+        ],
+        metrics: { llmCalls: 1, latencyMs: 1, promptTokens: 2 },
+        pendingApproval: {
+          tool: "resolver_incident",
+          args: { id: 1, summary: "ok" },
+          description: "resolver_incident (id=1, summary=ok)",
+        },
+      };
+    },
+  };
+}
+
+test("POST /chat gated tool path returns 202 with approvalId", async () => {
+  const started = await listen(
+    testApp({
+      registry: {
+        react: pendingFake(),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
+    }),
+  );
+  try {
+    const result = await postJson(started.baseUrl, { message: "resolva" });
+    assert.equal(result.status, 202);
+    assert.equal(typeof result.json.approvalId, "string");
+    assert.equal(typeof result.json.requestId, "string");
+    const pending = result.json.pending as Record<string, unknown>;
+    assert.equal(pending.tool, "resolver_incident");
+    assert.ok(pending.args && typeof pending.args === "object");
+    assert.equal(typeof pending.description, "string");
+    assert.ok(Array.isArray(result.json.trace));
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("POST /opspilot/approvals/:id approve and deny", async () => {
+  const { createInMemorySeededStore } = await import("../agents/store.js");
+  const ops = createInMemorySeededStore();
+  const before = ops.listIncidents("open").length;
+  const approvalStore = new (await import("../store/in-memory-approval-store.js")).InMemoryApprovalStore();
+
+  const started = await listen(
+    testApp({
+      opsStore: ops,
+      approvalStore,
+      registry: {
+        react: pendingFake(),
+        "plan-and-execute": makeFake("plan-and-execute", []),
+      },
+      learningExtractor: silentLearning,
+      conversationSummarizer: silentSummarizer,
+    }),
+  );
+  try {
+    const pendingRes = await postJson(started.baseUrl, { message: "resolva" });
+    assert.equal(pendingRes.status, 202);
+    const approvalId = pendingRes.json.approvalId as string;
+
+    const denyStarted = await listen(
+      testApp({
+        opsStore: createInMemorySeededStore(),
+        approvalStore: new (await import("../store/in-memory-approval-store.js")).InMemoryApprovalStore(),
+        registry: {
+          react: pendingFake(),
+          "plan-and-execute": makeFake("plan-and-execute", []),
+        },
+        learningExtractor: silentLearning,
+        conversationSummarizer: silentSummarizer,
+      }),
+    );
+    try {
+      const p2 = await postJson(denyStarted.baseUrl, { message: "resolva" });
+      const denyId = p2.json.approvalId as string;
+      const denied = await fetch(`${denyStarted.baseUrl}/opspilot/approvals/${denyId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "deny" }),
+      });
+      const denyJson = (await denied.json()) as Record<string, unknown>;
+      assert.equal(denied.status, 200);
+      assert.equal(denyJson.decision, "deny");
+      assert.match(String(denyJson.answer), /Negado/i);
+    } finally {
+      await closeServer(denyStarted.server);
+    }
+
+    // reopen path: fresh pending on same app store — use new pending from first app
+    // first app already consumed? pending still pending until resolve
+    const approved = await fetch(`${started.baseUrl}/opspilot/approvals/${approvalId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "approve" }),
+    });
+    const approveJson = (await approved.json()) as Record<string, unknown>;
+    assert.equal(approved.status, 200);
+    assert.equal(approveJson.decision, "approve");
+
+    const second = await fetch(`${started.baseUrl}/opspilot/approvals/${approvalId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "deny" }),
+    });
+    assert.equal(second.status, 409);
+
+    const missing = await fetch(`${started.baseUrl}/opspilot/approvals/no-such-id`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "approve" }),
+    });
+    assert.equal(missing.status, 404);
+
+    const badBody = await fetch(`${started.baseUrl}/opspilot/approvals/${approvalId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "maybe" }),
+    });
+    assert.equal(badBody.status, 400);
+
+    // approve may fail tool if incident id wrong — still 200 with observation
+    assert.ok(typeof approveJson.answer === "string");
+    void before;
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("POST /approvals empty id → 400", async () => {
+  const started = await listen(testApp());
+  try {
+    const response = await fetch(`${started.baseUrl}/approvals/%20`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "approve" }),
+    });
+    assert.equal(response.status, 400);
+  } finally {
+    await closeServer(started.server);
+  }
+});

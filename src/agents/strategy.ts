@@ -56,10 +56,18 @@ export type Metrics = {
   modelUsed?: string;
 };
 
+export type PendingApprovalInfo = {
+  tool: ToolName;
+  args: Record<string, unknown>;
+  description: string;
+};
+
 export type StrategyResult = {
   answer: string;
   trace: TraceEvent[];
   metrics: Metrics;
+  /** Set when a gated tool was about to run; HTTP maps to 202. */
+  pendingApproval?: PendingApprovalInfo;
 };
 
 export type StrategyName =
@@ -124,6 +132,12 @@ export async function runWithMetrics(
       llmCalls: result.metrics?.llmCalls ?? 0,
       latencyMs: result.metrics?.latencyMs ?? Date.now() - started,
       promptTokens: result.metrics?.promptTokens ?? 0,
+      ...(result.metrics?.modelUsed !== undefined
+        ? { modelUsed: result.metrics.modelUsed }
+        : {}),
     },
+    ...(result.pendingApproval !== undefined
+      ? { pendingApproval: result.pendingApproval }
+      : {}),
   };
 }

@@ -6,6 +6,11 @@ import { readPromptTokens } from "../context/tokens.js";
 import { ModelUnavailableError } from "../domain/errors.js";
 import type { MemoryStore } from "../domain/types.js";
 import {
+  HumanApprovalRequiredError,
+  describePendingApproval,
+  requiresHumanApproval,
+} from "./approval-gate.js";
+import {
   buildFallbackEvent,
   createModel,
   resolveReportedModelUsed,
@@ -171,11 +176,22 @@ function createPlanExecuteGraph(
     const observations: string[] = [];
     for (const call of ai.tool_calls ?? []) {
       const toolName = asToolName(call.name);
+      const args = (call.args ?? {}) as Record<string, unknown>;
       events.push({
         type: "action",
         tool: toolName,
-        args: (call.args ?? {}) as Record<string, unknown>,
+        args,
       });
+
+      if (requiresHumanApproval(toolName)) {
+        throw new HumanApprovalRequiredError({
+          tool: toolName,
+          args,
+          trace: [...state.trace, ...events],
+          llmCalls: state.llmCalls + 1,
+          promptTokens: state.promptTokens + readPromptTokens(ai),
+        });
+      }
 
       const selected = toolsByName.get(call.name);
       let observation: string;
@@ -185,7 +201,7 @@ function createPlanExecuteGraph(
         const invoke = selected.invoke.bind(selected) as (
           input: Record<string, unknown>,
         ) => Promise<unknown>;
-        const raw = await invoke((call.args ?? {}) as Record<string, unknown>);
+        const raw = await invoke(args);
         observation = typeof raw === "string" ? raw : JSON.stringify(raw);
       }
       observations.push(observation);
@@ -398,6 +414,21 @@ export const planAndExecuteStrategy: ReasoningStrategy = {
           },
         };
       } catch (error: unknown) {
+        if (error instanceof HumanApprovalRequiredError) {
+          return {
+            answer: "Aguardando aprovação humana.",
+            trace: error.trace,
+            pendingApproval: {
+              tool: error.tool,
+              args: error.args,
+              description: describePendingApproval(error.tool, error.args),
+            },
+            metrics: {
+              llmCalls: error.llmCalls,
+              promptTokens: error.promptTokens,
+            },
+          };
+        }
         if (error instanceof ModelUnavailableError) {
           throw error;
         }

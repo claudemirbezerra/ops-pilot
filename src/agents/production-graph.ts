@@ -22,7 +22,7 @@ import {
   type ProductionRegistry,
   type ProductionRoute,
 } from "./production-route.js";
-import type { TraceEvent } from "./strategy.js";
+import type { PendingApprovalInfo, TraceEvent } from "./strategy.js";
 
 export type RouteDecision = {
   route: ProductionRoute;
@@ -102,6 +102,7 @@ const ProductionState = Annotation.Root({
   llmCalls: Annotation<number>,
   promptTokens: Annotation<number>,
   modelUsed: Annotation<string | undefined>,
+  pendingApproval: Annotation<PendingApprovalInfo | undefined>,
 });
 
 type ProductionStateType = typeof ProductionState.State;
@@ -125,6 +126,7 @@ export type RunProductionGraphResult = {
   answer: string;
   trace: TraceEvent[];
   built: BuiltContext;
+  pendingApproval?: PendingApprovalInfo;
   metrics: {
     llmCalls: number;
     promptTokens: number;
@@ -214,6 +216,9 @@ function createProductionGraph(deps: {
       llmCalls: state.llmCalls + result.metrics.llmCalls,
       promptTokens: state.promptTokens + result.metrics.promptTokens,
       modelUsed: result.metrics.modelUsed ?? state.modelUsed,
+      ...(result.pendingApproval !== undefined
+        ? { pendingApproval: result.pendingApproval }
+        : {}),
     };
   }
 
@@ -301,6 +306,7 @@ export async function runProductionGraph(
     llmCalls: 0,
     promptTokens: 0,
     modelUsed: undefined,
+    pendingApproval: undefined,
   });
 
   if (!finalState.built) {
@@ -311,6 +317,9 @@ export async function runProductionGraph(
     answer: finalState.answer,
     trace: finalState.trace,
     built: finalState.built,
+    ...(finalState.pendingApproval !== undefined
+      ? { pendingApproval: finalState.pendingApproval }
+      : {}),
     metrics: {
       llmCalls: finalState.llmCalls,
       promptTokens: finalState.promptTokens,

@@ -17,6 +17,7 @@ import { isProductionRoute } from "../agents/production-route.js";
 import {
   buildEmptyInputResult,
   isBlankInput,
+  type PendingApprovalInfo,
   type StrategyResult,
   type TraceEvent,
 } from "../agents/strategy.js";
@@ -59,6 +60,7 @@ export type ChatResult = Omit<StrategyResult, "metrics"> & {
     contextBreakdown: ContextBreakdown;
   };
   conversationId?: string;
+  pendingApproval?: PendingApprovalInfo;
 };
 
 const DEFAULT_TIMEOUT_MS = 180_000;
@@ -164,57 +166,66 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
       role: "user",
       content: input.message,
     });
-    input.conversationStore.append(conversationId, {
-      role: "assistant",
-      content: result.answer,
-    });
 
-    const summarizeEvents: TraceEvent[] = [];
-    const existingSummary =
-      input.conversationStore.getSummary(conversationId);
-    const covered = existingSummary?.coveredThroughId ?? 0;
-    const pending = input.conversationStore.listUnsummarizedOutsideWindow(
-      conversationId,
-      HISTORY_LIMIT,
-      covered,
-    );
-
-    if (pending.length >= EGRESS_BATCH_SIZE) {
-      const batch = pending.slice(0, EGRESS_BATCH_SIZE);
-      const summarizer =
-        input.conversationSummarizer ?? createLlmConversationSummarizer();
-      try {
-        const newText = (
-          await summarizer.summarize({
-            previousSummary: existingSummary?.text ?? "",
-            egressBatch: batch.map(({ role, content }) => ({ role, content })),
-          })
-        ).trim();
-        if (newText.length > 0) {
-          const lastId = batch[EGRESS_BATCH_SIZE - 1]!.id;
-          input.conversationStore.upsertSummary(
-            conversationId,
-            newText,
-            lastId,
-          );
-          summarizeEvents.push({
-            type: "summarize",
-            content: newText,
-            node: "response",
-          });
-        }
-      } catch (error: unknown) {
-        console.error("[history-summarizer]", error);
-      }
+    const awaitingApproval = result.pendingApproval !== undefined;
+    if (!awaitingApproval) {
+      input.conversationStore.append(conversationId, {
+        role: "assistant",
+        content: result.answer,
+      });
     }
 
-    if (input.userId !== undefined) {
-      scheduleLearning({
-        userId: input.userId,
-        userMessage: input.message,
-        memoryStore: input.memoryStore,
-        extractor: input.learningExtractor ?? createLlmLearningExtractor(),
-      });
+    const summarizeEvents: TraceEvent[] = [];
+    if (!awaitingApproval) {
+      const existingSummary =
+        input.conversationStore.getSummary(conversationId);
+      const covered = existingSummary?.coveredThroughId ?? 0;
+      const pending = input.conversationStore.listUnsummarizedOutsideWindow(
+        conversationId,
+        HISTORY_LIMIT,
+        covered,
+      );
+
+      if (pending.length >= EGRESS_BATCH_SIZE) {
+        const batch = pending.slice(0, EGRESS_BATCH_SIZE);
+        const summarizer =
+          input.conversationSummarizer ?? createLlmConversationSummarizer();
+        try {
+          const newText = (
+            await summarizer.summarize({
+              previousSummary: existingSummary?.text ?? "",
+              egressBatch: batch.map(({ role, content }) => ({
+                role,
+                content,
+              })),
+            })
+          ).trim();
+          if (newText.length > 0) {
+            const lastId = batch[EGRESS_BATCH_SIZE - 1]!.id;
+            input.conversationStore.upsertSummary(
+              conversationId,
+              newText,
+              lastId,
+            );
+            summarizeEvents.push({
+              type: "summarize",
+              content: newText,
+              node: "response",
+            });
+          }
+        } catch (error: unknown) {
+          console.error("[history-summarizer]", error);
+        }
+      }
+
+      if (input.userId !== undefined) {
+        scheduleLearning({
+          userId: input.userId,
+          userMessage: input.message,
+          memoryStore: input.memoryStore,
+          extractor: input.learningExtractor ?? createLlmLearningExtractor(),
+        });
+      }
     }
 
     const currentLine = renderHistoryPrompt([
@@ -229,6 +240,9 @@ export async function runChat(input: RunChatInput): Promise<ChatResult> {
       answer: result.answer,
       trace: [...result.trace, ...summarizeEvents],
       conversationId,
+      ...(result.pendingApproval !== undefined
+        ? { pendingApproval: result.pendingApproval }
+        : {}),
       metrics: {
         llmCalls: result.metrics.llmCalls,
         latencyMs: result.metrics.latencyMs,

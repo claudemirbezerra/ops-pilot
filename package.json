@@ -9,7 +9,10 @@
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "seed": "tsx src/seed.ts",
-    "mcp": "node --env-file=.env --import tsx src/mcp/server.ts"
+    "mcp": "node --env-file=.env --import tsx src/mcp/server.ts",
+    "web": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build",
+    "web:test": "npm --prefix web run test"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.2",

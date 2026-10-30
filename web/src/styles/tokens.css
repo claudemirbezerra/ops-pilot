@@ -1,0 +1,128 @@
+:root {
+  color-scheme: light dark;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+
+  --font-display: "Segoe UI", "IBM Plex Sans", system-ui, sans-serif;
+  --font-body: "Segoe UI", "IBM Plex Sans", system-ui, sans-serif;
+
+  --bg: #e8eef2;
+  --surface: #f7fafc;
+  --fg: #15202b;
+  --muted: #5a6b7a;
+  --border: #c5d0da;
+  --danger: #b42318;
+  --warning: #b54708;
+  --success: #067647;
+  --accent: #0b6e4f;
+  --focus: #0b6e4f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1419;
+    --surface: #1a222c;
+    --fg: #e7eef5;
+    --muted: #9aabbc;
+    --border: #2f3c4a;
+    --danger: #f97066;
+    --warning: #fdb022;
+    --success: #47cd89;
+    --accent: #3dd68c;
+    --focus: #3dd68c;
+  }
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #e8eef2;
+  --surface: #f7fafc;
+  --fg: #15202b;
+  --muted: #5a6b7a;
+  --border: #c5d0da;
+  --danger: #b42318;
+  --warning: #b54708;
+  --success: #067647;
+  --accent: #0b6e4f;
+  --focus: #0b6e4f;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1419;
+  --surface: #1a222c;
+  --fg: #e7eef5;
+  --muted: #9aabbc;
+  --border: #2f3c4a;
+  --danger: #f97066;
+  --warning: #fdb022;
+  --success: #47cd89;
+  --accent: #3dd68c;
+  --focus: #3dd68c;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.caption {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
