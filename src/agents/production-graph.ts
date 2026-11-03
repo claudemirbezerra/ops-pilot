@@ -36,7 +36,7 @@ export type ProductionRouter = {
 };
 
 const routeSchema = z.object({
-  route: z.enum(["react", "plan-and-execute", "reflection"]),
+  route: z.enum(["react", "plan-and-execute", "reflection", "team"]),
   reason: z.string().describe("Uma frase justificando a escolha"),
 });
 
@@ -209,6 +209,7 @@ function createProductionGraph(deps: {
       maxReflections: state.maxReflections,
       userId: state.userId,
       memoryStore: state.memoryStore,
+      requestMessage: state.message,
     });
     return {
       answer: result.answer,
@@ -240,6 +241,12 @@ function createProductionGraph(deps: {
     return runStrategy(state, "reflection");
   }
 
+  async function teamNode(
+    state: ProductionStateType,
+  ): Promise<Partial<ProductionStateType>> {
+    return runStrategy(state, "team");
+  }
+
   async function responseNode(
     _state: ProductionStateType,
   ): Promise<Partial<ProductionStateType>> {
@@ -261,6 +268,7 @@ function createProductionGraph(deps: {
     .addNode("react", reactNode)
     .addNode("plan-and-execute", planAndExecuteNode)
     .addNode("reflection", reflectionNode)
+    .addNode("team", teamNode)
     .addNode("response", responseNode)
     .addEdge(START, "context")
     .addEdge("context", "router")
@@ -268,10 +276,12 @@ function createProductionGraph(deps: {
       react: "react",
       "plan-and-execute": "plan-and-execute",
       reflection: "reflection",
+      team: "team",
     })
     .addEdge("react", "response")
     .addEdge("plan-and-execute", "response")
     .addEdge("reflection", "response")
+    .addEdge("team", "response")
     .addEdge("response", END)
     .compile();
 }

@@ -45,6 +45,19 @@ test("formatTrace é determinístico e inclui tool e args na ação", () => {
   assert.match(first, /override=false/);
 });
 
+test("formatTrace inclui handoff com papel e brief", () => {
+  const text = formatTrace([
+    {
+      type: "handoff",
+      next: "analista",
+      brief: "Ler os alertas em disparo.",
+      node: "team",
+    },
+  ]);
+  assert.match(text, /\[handoff\]/);
+  assert.match(text, /analista: Ler os alertas em disparo\./);
+});
+
 test("formatTrace inclui evento fallback", () => {
   const text = formatTrace([
     {

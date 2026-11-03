@@ -10,7 +10,13 @@ export type ToolName =
   | "check_provider_status"
   | "forget_preference";
 
-export type ProductionRoute = "react" | "plan-and-execute" | "reflection";
+export type TeamNext = "analista" | "planejador" | "executor" | "encerrar";
+
+export type ProductionRoute =
+  | "react"
+  | "plan-and-execute"
+  | "reflection"
+  | "team";
 
 export type TraceNode =
   | "context"
@@ -18,7 +24,8 @@ export type TraceNode =
   | "react"
   | "plan-and-execute"
   | "reflection"
-  | "response";
+  | "response"
+  | "team";
 
 export type TraceEvent =
   | { type: "thought"; content: string; node?: TraceNode }
@@ -44,6 +51,12 @@ export type TraceEvent =
       type: "fallback";
       from: string;
       to: string;
+      node?: TraceNode;
+    }
+  | {
+      type: "handoff";
+      next: TeamNext;
+      brief: string;
       node?: TraceNode;
     };
 
@@ -74,7 +87,8 @@ export type StrategyName =
   | "react"
   | "plan-and-execute"
   | "reflect:react"
-  | "reflect:plan-and-execute";
+  | "reflect:plan-and-execute"
+  | "team";
 
 export type StrategyOptions = {
   maxIterations: number;
@@ -88,6 +102,8 @@ export type StrategyOptions = {
   memoryStore?: MemoryStore;
   /** Plan-and-Execute only: skip the replanner node. */
   noReplanner?: boolean;
+  /** Raw plantonista message for the team blackboard. Other strategies ignore it. */
+  requestMessage?: string;
 };
 
 export type ReasoningStrategy = {

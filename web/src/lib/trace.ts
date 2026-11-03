@@ -23,6 +23,12 @@ export type TraceEvent =
       from: string;
       to: string;
       node?: string;
+    }
+  | {
+      type: "handoff";
+      next: string;
+      brief: string;
+      node?: string;
     };
 
 export function formatTraceEvent(event: TraceEvent): string {
@@ -41,6 +47,8 @@ export function formatTraceEvent(event: TraceEvent): string {
       return `${event.route}: ${event.reason}`;
     case "fallback":
       return `${event.from} → ${event.to}`;
+    case "handoff":
+      return `${event.next}: ${event.brief}`;
     default:
       return JSON.stringify(event);
   }

@@ -10,6 +10,7 @@ import { OVERRIDE_REASON, isProductionRoute } from "./production-route.js";
 import type {
   ProductionRoute,
   ReasoningStrategy,
+  StrategyOptions,
   StrategyResult,
 } from "./strategy.js";
 import { InvalidRouteError } from "../domain/errors.js";
@@ -246,4 +247,133 @@ test("invalid router decision does not run a strategy", async () => {
 test("isProductionRoute still rejects sketch aliases", () => {
   assert.equal(isProductionRoute("planExecute"), false);
   assert.equal(isProductionRoute("reflect"), false);
+});
+
+function teamFake(
+  runs: string[],
+  seen: StrategyOptions[] = [],
+): ReasoningStrategy {
+  return {
+    name: "team",
+    async run(input: string, options: StrategyOptions): Promise<StrategyResult> {
+      runs.push(input);
+      seen.push(options);
+      return {
+        answer: "team-ok",
+        trace: [
+          {
+            type: "handoff",
+            next: "encerrar",
+            brief: "team-ok",
+            node: "team",
+          },
+        ],
+        metrics: { llmCalls: 2, latencyMs: 1, promptTokens: 4 },
+      };
+    },
+  };
+}
+
+test("override team skips the router and runs only team", async () => {
+  const reactCalls: string[] = [];
+  const planCalls: string[] = [];
+  const teamCalls: string[] = [];
+  const seen: StrategyOptions[] = [];
+  const router = fixedRouter("react");
+  const result = await runProductionGraph({
+    message: "separar papéis",
+    sections: baseSections("separar papéis"),
+    budgets: emptyBudgets,
+    override: "team",
+    maxIterations: 8,
+    maxReflections: 2,
+    registry: {
+      react: fakeStrategy("react", reactCalls),
+      "plan-and-execute": fakeStrategy("plan-and-execute", planCalls),
+      team: teamFake(teamCalls, seen),
+    },
+    router,
+    critic: approvingCritic(),
+  });
+
+  assert.equal(router.decideCalls, 0);
+  assert.equal(teamCalls.length, 1);
+  assert.equal(reactCalls.length, 0);
+  assert.equal(planCalls.length, 0);
+  assert.equal(seen[0]?.requestMessage, "separar papéis");
+  assert.equal(result.answer, "team-ok");
+  assert.equal(result.trace[0]?.type, "route");
+  if (result.trace[0]?.type === "route") {
+    assert.equal(result.trace[0].route, "team");
+    assert.equal(result.trace[0].reason, OVERRIDE_REASON);
+    assert.equal(result.trace[0].override, true);
+    assert.equal(result.trace[0].node, "router");
+  }
+  assert.equal(result.metrics.llmCalls, 2);
+});
+
+test("router team runs only the team fake", async () => {
+  const reactCalls: string[] = [];
+  const planCalls: string[] = [];
+  const teamCalls: string[] = [];
+  const router = fixedRouter("team", "papéis separados");
+  const result = await runProductionGraph({
+    message: "diagnóstico e incidente",
+    sections: baseSections("diagnóstico e incidente"),
+    budgets: emptyBudgets,
+    maxIterations: 8,
+    maxReflections: 2,
+    registry: {
+      react: fakeStrategy("react", reactCalls),
+      "plan-and-execute": fakeStrategy("plan-and-execute", planCalls),
+      team: teamFake(teamCalls),
+    },
+    router,
+  });
+
+  assert.equal(router.decideCalls, 1);
+  assert.equal(teamCalls.length, 1);
+  assert.equal(reactCalls.length, 0);
+  assert.equal(planCalls.length, 0);
+  assert.equal(result.trace[0]?.type, "route");
+  if (result.trace[0]?.type === "route") {
+    assert.equal(result.trace[0].route, "team");
+    assert.equal(result.trace[0].override, false);
+    assert.equal(result.trace[0].reason, "papéis separados");
+  }
+});
+
+test("reflect true on team override does not call the critic", async () => {
+  let criticCalls = 0;
+  const critic: Critic = {
+    async evaluate() {
+      criticCalls += 1;
+      return { approved: false, feedback: "não", llmCalls: 1, promptTokens: 1 };
+    },
+  };
+  const router = fixedRouter("react");
+  const result = await runProductionGraph({
+    message: "equipe com reflect",
+    sections: baseSections("equipe com reflect"),
+    budgets: emptyBudgets,
+    override: "team",
+    reflect: true,
+    maxIterations: 8,
+    maxReflections: 2,
+    registry: {
+      react: fakeStrategy("react", []),
+      "plan-and-execute": fakeStrategy("plan-and-execute", []),
+      team: teamFake([]),
+    },
+    router,
+    critic,
+  });
+
+  assert.equal(router.decideCalls, 0);
+  assert.equal(criticCalls, 0);
+  assert.equal(result.answer, "team-ok");
+  assert.equal(
+    result.trace.some((event) => event.type === "critique"),
+    false,
+  );
 });

@@ -29,6 +29,18 @@ export class InvalidRouteError extends DomainError {
   }
 }
 
+export class InvalidTeamDecisionError extends DomainError {
+  constructor(message = "Não foi possível decidir o próximo papel.") {
+    super(message);
+  }
+}
+
+export class InvalidTeamRoleError extends DomainError {
+  constructor(message = "Não foi possível cumprir o papel.") {
+    super(message);
+  }
+}
+
 export class EmptyStrategySelectionError extends DomainError {}
 
 export class InvalidMaxReflectionsError extends DomainError {}

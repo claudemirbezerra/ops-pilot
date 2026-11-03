@@ -37,6 +37,8 @@ import {
   ConversationNotFoundError,
   EmbeddingUnavailableError,
   InvalidRouteError,
+  InvalidTeamDecisionError,
+  InvalidTeamRoleError,
   ModelUnavailableError,
   RequestNotFoundError,
   UnknownStrategyError,
@@ -208,6 +210,13 @@ export function createApp(options: CreateAppOptions = {}): Express {
         return;
       }
       if (error instanceof InvalidRouteError) {
+        res.status(502).json({ message: error.message });
+        return;
+      }
+      if (
+        error instanceof InvalidTeamDecisionError ||
+        error instanceof InvalidTeamRoleError
+      ) {
         res.status(502).json({ message: error.message });
         return;
       }

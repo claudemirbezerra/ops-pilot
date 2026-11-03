@@ -19,7 +19,12 @@ import {
   type TraceEvent,
 } from "../agents/strategy.js";
 import { estimateTokens } from "../context/tokens.js";
-import { ChatTimeoutError, ModelUnavailableError } from "../domain/errors.js";
+import {
+  ChatTimeoutError,
+  InvalidTeamDecisionError,
+  InvalidTeamRoleError,
+  ModelUnavailableError,
+} from "../domain/errors.js";
 import type { Embedder } from "../domain/types.js";
 import { SqliteMemoryStore } from "../memory/memory-store.js";
 import { EMBEDDING_DIMS } from "../memory/similarity.js";
@@ -2103,6 +2108,296 @@ test("POST /opspilot/approvals/:id approve and deny", async () => {
     // approve may fail tool if incident id wrong — still 200 with observation
     assert.ok(typeof approveJson.answer === "string");
     void before;
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+function countingRouter(route: ProductionRoute, reason = "papéis separados") {
+  const router = {
+    calls: 0,
+    async decide() {
+      router.calls += 1;
+      return { route, reason, llmCalls: 1, promptTokens: 3 };
+    },
+  };
+  return router;
+}
+
+function teamHttpFake(
+  run: () => Promise<StrategyResult>,
+  calls: string[],
+): ReasoningStrategy {
+  return {
+    name: "team",
+    async run(message: string) {
+      calls.push(message);
+      return run();
+    },
+  };
+}
+
+function teamChatApp(params: {
+  team: ReasoningStrategy;
+  router: ProductionRouter;
+  reactCalls?: CallLog[];
+}) {
+  return testApp({
+    registry: {
+      react: makeFake("react", params.reactCalls ?? []),
+      "plan-and-execute": makeFake("plan-and-execute", []),
+      team: params.team,
+    },
+    router: params.router,
+    conversationStore: new SqliteConversationStore(":memory:"),
+    memoryStore: fakeMemoryStore(),
+    learningExtractor: silentLearning,
+    conversationSummarizer: silentSummarizer,
+  });
+}
+
+test("strategy team is an override and does not call the router", async () => {
+  const teamCalls: string[] = [];
+  const router = countingRouter("react", "não usar");
+  const started = await listen(
+    teamChatApp({
+      router,
+      team: teamHttpFake(async () => {
+        return {
+          answer: "equipe pronta",
+          trace: [
+            {
+              type: "handoff",
+              next: "encerrar",
+              brief: "equipe pronta",
+              node: "team",
+            },
+          ],
+          metrics: { llmCalls: 1, latencyMs: 1, promptTokens: 2 },
+        };
+      }, teamCalls),
+    }),
+  );
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "separar papéis",
+      strategy: "team",
+    });
+    assert.equal(result.status, 200);
+    assert.equal(router.calls, 0);
+    assert.equal(teamCalls.length, 1);
+    const trace = result.json.trace as TraceEvent[];
+    assert.equal(trace[0]?.type, "route");
+    if (trace[0]?.type === "route") {
+      assert.equal(trace[0].route, "team");
+      assert.equal(trace[0].override, true);
+      assert.equal(trace[0].reason, OVERRIDE_REASON);
+      assert.equal(trace[0].node, "router");
+    }
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("router that returns team runs only team", async () => {
+  const teamCalls: string[] = [];
+  const reactCalls: CallLog[] = [];
+  const router = countingRouter("team");
+  const started = await listen(
+    teamChatApp({
+      router,
+      reactCalls,
+      team: teamHttpFake(async () => {
+        return {
+          answer: "só equipe",
+          trace: [{ type: "answer", content: "só equipe", node: "team" }],
+          metrics: { llmCalls: 1, latencyMs: 1, promptTokens: 1 },
+        };
+      }, teamCalls),
+    }),
+  );
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "diagnóstico plano e incidente",
+    });
+    assert.equal(result.status, 200);
+    assert.equal(router.calls, 1);
+    assert.equal(teamCalls.length, 1);
+    assert.equal(reactCalls.length, 0);
+    const trace = result.json.trace as TraceEvent[];
+    assert.equal(trace[0]?.type, "route");
+    if (trace[0]?.type === "route") {
+      assert.equal(trace[0].route, "team");
+      assert.equal(trace[0].override, false);
+      assert.equal(trace[0].reason, "papéis separados");
+    }
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("strategy Team is rejected with 422", async () => {
+  const teamCalls: string[] = [];
+  const started = await listen(
+    teamChatApp({
+      router: countingRouter("react"),
+      team: teamHttpFake(async () => {
+        throw new Error("não devia rodar");
+      }, teamCalls),
+    }),
+  );
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "oi",
+      strategy: "Team",
+    });
+    assert.equal(result.status, 422);
+    assert.equal(result.json.message, "Estratégia desconhecida: Team.");
+    assert.equal(teamCalls.length, 0);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("blank message with strategy team skips route and handoff", async () => {
+  const teamCalls: string[] = [];
+  const started = await listen(
+    teamChatApp({
+      router: countingRouter("team"),
+      team: teamHttpFake(async () => {
+        throw new Error("não devia rodar");
+      }, teamCalls),
+    }),
+  );
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "   ",
+      strategy: "team",
+    });
+    assert.equal(result.status, 200);
+    assert.equal(result.json.answer, EMPTY_INPUT_ANSWER);
+    const trace = result.json.trace as TraceEvent[];
+    assert.equal(
+      trace.some((event) => event.type === "route"),
+      false,
+    );
+    assert.equal(
+      trace.some((event) => event.type === "handoff"),
+      false,
+    );
+    assert.equal(teamCalls.length, 0);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("illegible team decision returns 502 without answer trace or metrics", async () => {
+  const started = await listen(
+    teamChatApp({
+      router: countingRouter("react"),
+      team: {
+        name: "team",
+        async run() {
+          throw new InvalidTeamDecisionError();
+        },
+      },
+    }),
+  );
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "decidir papel",
+      strategy: "team",
+    });
+    assert.equal(result.status, 502);
+    assert.equal(
+      result.json.message,
+      "Não foi possível decidir o próximo papel.",
+    );
+    assert.equal(result.json.answer, undefined);
+    assert.equal(result.json.trace, undefined);
+    assert.equal(result.json.metrics, undefined);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("illegible team role returns 502 without answer trace or metrics", async () => {
+  const started = await listen(
+    teamChatApp({
+      router: countingRouter("react"),
+      team: {
+        name: "team",
+        async run() {
+          throw new InvalidTeamRoleError();
+        },
+      },
+    }),
+  );
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "plano vazio",
+      strategy: "team",
+    });
+    assert.equal(result.status, 502);
+    assert.equal(result.json.message, "Não foi possível cumprir o papel.");
+    assert.equal(result.json.answer, undefined);
+    assert.equal(result.json.trace, undefined);
+    assert.equal(result.json.metrics, undefined);
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("team executor approval returns 202 with the handoff", async () => {
+  const started = await listen(
+    teamChatApp({
+      router: countingRouter("react"),
+      team: {
+        name: "team",
+        async run() {
+          return {
+            answer: "",
+            trace: [
+              {
+                type: "handoff",
+                next: "executor",
+                brief: "Abrir incidente",
+                node: "team",
+              },
+              {
+                type: "action",
+                tool: "open_incident",
+                args: { title: "Checkout", service: "checkout", severity: "high" },
+                node: "team",
+              },
+            ],
+            metrics: { llmCalls: 1, latencyMs: 1, promptTokens: 2 },
+            pendingApproval: {
+              tool: "open_incident",
+              args: { title: "Checkout", service: "checkout", severity: "high" },
+              description: 'Abrir incidente: "Checkout" · checkout · high',
+            },
+          };
+        },
+      },
+    }),
+  );
+  try {
+    const result = await postJson(started.baseUrl, {
+      message: "abra o incidente",
+      strategy: "team",
+    });
+    assert.equal(result.status, 202);
+    const trace = result.json.trace as TraceEvent[];
+    assert.ok(
+      trace.some(
+        (event) =>
+          event.type === "handoff" &&
+          event.next === "executor" &&
+          event.brief === "Abrir incidente",
+      ),
+    );
+    assert.equal(result.json.answer, undefined);
   } finally {
     await closeServer(started.server);
   }

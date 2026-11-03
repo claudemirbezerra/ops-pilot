@@ -12,6 +12,17 @@ test("hasTraceEvents", () => {
   );
 });
 
+test("formatTraceEvent handoff mostra papel e brief", () => {
+  assert.equal(
+    formatTraceEvent({
+      type: "handoff",
+      next: "analista",
+      brief: "Ler os alertas em disparo.",
+    }),
+    "analista: Ler os alertas em disparo.",
+  );
+});
+
 test("formatTraceEvent exposes type content", () => {
   const events: TraceEvent[] = [
     { type: "thought", content: "pensar" },

@@ -16,6 +16,7 @@ export const PRODUCTION_ROUTES = [
   "react",
   "plan-and-execute",
   "reflection",
+  "team",
 ] as const satisfies readonly ProductionRoute[];
 
 export const OVERRIDE_REASON = "Estratégia informada no pedido.";
@@ -27,10 +28,11 @@ Tabela de rotas:
 | Pedido do plantonista | Rota |
 | --- | --- |
 | Uma consulta ou uma ação direta (listar alertas, consultar status ou runbook, abrir ou resolver um incidente isolado, esquecer uma preferência) | react |
-| Uma sequência de passos dependentes (investigar e então agir em mais de uma etapa) | plan-and-execute |
+| Uma sequência de passos dependentes feita pelo mesmo agente (investigar e então agir em mais de uma etapa) | plan-and-execute |
 | Pedido de revisão, conferência ou maior confiança antes de aceitar a resposta | reflection |
+| Diagnóstico, plano e ação sobre incidentes que devem passar por papéis separados (leitura, plano sem ferramentas, execução de incidente) | team |
 
-Responda só com uma dessas três rotas e um motivo em uma frase. Não invente uma quarta rota.`;
+Responda só com uma dessas quatro rotas e um motivo em uma frase. Não invente uma quinta rota.`;
 
 export function isProductionRoute(value: string): value is ProductionRoute {
   return (PRODUCTION_ROUTES as readonly string[]).includes(value);
@@ -82,6 +84,14 @@ export function resolveProductionStrategy(
       critic,
       name: "reflect:react",
     });
+  }
+
+  if (route === "team") {
+    const team = registry.team;
+    if (!team) {
+      throw new Error("Registry de produção sem estratégia base 'team'.");
+    }
+    return team;
   }
 
   const base = registry[route];

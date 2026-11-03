@@ -38,7 +38,10 @@ const arenaArgsSchema = z.object({
   input: z.string().default(""),
 });
 
-const strategiesByName: Record<StrategyName, ReasoningStrategy> = {
+const strategiesByName: Record<
+  Exclude<StrategyName, "team">,
+  ReasoningStrategy
+> = {
   react: reactStrategy,
   "plan-and-execute": planAndExecuteStrategy,
   "reflect:react": createReflectReactStrategy(),

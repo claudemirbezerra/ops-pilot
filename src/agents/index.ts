@@ -5,6 +5,7 @@ import { planAndExecuteStrategy } from "./plan-and-execute.js";
 import { reactStrategy } from "./react.js";
 import { wrapWithReflection } from "./reflection.js";
 import type { ReasoningStrategy, StrategyName } from "./strategy.js";
+import { teamStrategy } from "../team/team-graph.js";
 
 export type ChannelStrategyName = "react" | "plan-and-execute";
 
@@ -13,6 +14,7 @@ export type ChannelRegistry = Record<string, ReasoningStrategy>;
 export const channelStrategies: ChannelRegistry = {
   react: reactStrategy,
   "plan-and-execute": planAndExecuteStrategy,
+  team: teamStrategy,
 };
 
 const REFLECT_NAMES: Record<
