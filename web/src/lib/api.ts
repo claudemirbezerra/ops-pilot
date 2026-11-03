@@ -30,7 +30,15 @@ export type ChatFailure = {
   message: string;
 };
 
-export type ChatResponse = ChatSuccess | ChatPending | ChatFailure;
+export type ChatAborted = {
+  kind: "aborted";
+};
+
+export type ChatResponse = ChatSuccess | ChatPending | ChatFailure | ChatAborted;
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
 
 export type ApprovalSuccess = {
   kind: "ok";
@@ -51,6 +59,7 @@ export function buildApprovalUrl(base: string, approvalId: string): string {
 export async function postChat(
   message: string,
   baseUrl: string = getApiBaseUrl(),
+  signal?: AbortSignal,
 ): Promise<ChatResponse> {
   const url = buildChatUrl(baseUrl);
   try {
@@ -58,6 +67,7 @@ export async function postChat(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message }),
+      signal,
     });
     const json = (await response.json()) as Record<string, unknown>;
 
@@ -109,7 +119,10 @@ export async function postChat(
         ? { conversationId: json.conversationId }
         : {}),
     };
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      return { kind: "aborted" };
+    }
     return {
       kind: "error",
       message:

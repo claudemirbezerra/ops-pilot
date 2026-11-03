@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 
 import { postChat } from "../lib/api";
 import { hasTraceEvents, type TraceEvent } from "../lib/trace";
@@ -30,25 +30,51 @@ export function ChatPanel({ apiBase }: Props) {
   const [loading, setLoading] = useState(false);
   const [traceView, setTraceView] = useState<TraceEvent[] | null>(null);
   const [live, setLive] = useState("");
+  const requestSeq = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const busy = loading || pending !== null;
+
+  function resetConversation() {
+    requestSeq.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setLoading(false);
+    setTurns([]);
+    setPending(null);
+    setError(null);
+    setMessage("");
+    setTraceView(null);
+    setLive("Conversa reiniciada.");
+  }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (pending) {
-      setError("Há uma decisão pendente. Aprove ou negue antes de enviar outra mensagem.");
+    if (busy) {
       return;
     }
     const text = message.trim();
     if (text.length === 0) {
       return;
     }
+    const seq = ++requestSeq.current;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     setError(null);
     setMessage("");
     const turnId = crypto.randomUUID();
     setTurns((prev) => [...prev, { id: turnId, user: text, trace: [] }]);
 
-    const result = await postChat(text, apiBase);
+    const result = await postChat(text, apiBase, controller.signal);
+    if (seq !== requestSeq.current) {
+      return;
+    }
+    abortRef.current = null;
     setLoading(false);
+
+    if (result.kind === "aborted") {
+      return;
+    }
 
     if (result.kind === "error") {
       setError(result.message);
@@ -86,7 +112,7 @@ export function ChatPanel({ apiBase }: Props) {
   }
 
   return (
-    <section className="chat" aria-label="Chat OpsPilot">
+    <section className="chat" aria-label="Chat OpsPilot" aria-busy={loading}>
       {turns.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon" aria-hidden>
@@ -172,13 +198,24 @@ export function ChatPanel({ apiBase }: Props) {
           id="chat-input"
           rows={3}
           value={message}
-          disabled={loading || pending !== null}
+          disabled={busy}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Ex.: listar alertas em disparo"
         />
-        <button type="submit" className="btn-primary" disabled={loading}>
-          {loading ? "Enviando…" : "Enviar"}
-        </button>
+        <div className="composer-actions">
+          <button type="submit" className="btn-primary" disabled={busy}>
+            {loading ? "Enviando…" : "Enviar"}
+          </button>
+          {busy || turns.length > 0 ? (
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={resetConversation}
+            >
+              Cancelar
+            </button>
+          ) : null}
+        </div>
       </form>
 
       <div className="visually-hidden" aria-live="polite">

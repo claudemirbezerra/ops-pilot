@@ -188,9 +188,18 @@
   gap: var(--space-3);
 }
 
+.composer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
 .composer textarea,
 .settings-panel input {
+  display: block;
   width: 100%;
+  min-width: 0;
   min-height: 2.75rem;
   padding: var(--space-3);
   border: 1px solid var(--border);
@@ -215,6 +224,13 @@
   font-weight: 600;
 }
 
+.btn-primary:disabled,
+.btn-ghost:disabled,
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn-ghost,
 .icon-btn {
   background: transparent;
@@ -228,8 +244,7 @@
 }
 
 .banner-error,
-.approval-card,
-.settings-panel {
+.approval-card {
   padding: var(--space-4);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -252,10 +267,28 @@
 
 .settings-panel {
   position: absolute;
-  right: 0;
+  inset-inline-end: 0;
   top: calc(100% + var(--space-2));
-  width: min(22rem, 80vw);
-  z-index: 2;
+  width: min(22rem, calc(100vw - 2 * var(--space-4)));
+  min-width: min(18rem, calc(100vw - 2 * var(--space-4)));
+  max-width: none;
+  z-index: 5;
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.settings-panel h2,
+.settings-panel label,
+.settings-panel .field-error {
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .trace-backdrop {
